@@ -7,29 +7,29 @@
   <title>Admin – Iamioo Spiele</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Pixelify+Sans:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛠️</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='2' fill='%23e52521'/><rect x='5' y='5' width='6' height='6' fill='%23fbd000'/></svg>">
   <style>
-    .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; margin-bottom: 24px; }
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); padding: 22px; margin-bottom: 24px; }
     .panel h2 { margin: 0 0 6px; font-size: 20px; }
     .hint { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
-    .hint a { color: var(--accent-3); }
+    .hint a { color: var(--focus); }
     label { display: block; font-weight: 600; font-size: 14px; margin: 14px 0 6px; }
     input[type=text], input[type=url], input[type=password], textarea, select {
-      width: 100%; background: var(--bg-2); border: 1px solid var(--line); color: var(--text);
-      border-radius: 10px; padding: 11px 12px; font: inherit;
+      width: 100%; background: var(--surface-2); border: 1px solid var(--line); color: var(--text);
+      border-radius: var(--r-md); padding: 11px 12px; font: inherit;
     }
     textarea { min-height: 84px; resize: vertical; }
-    input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent-3); outline-offset: 1px; }
+    input:focus, textarea:focus, select:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
     .btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
     button.btn { font: inherit; font-weight: 700; }
     .btn-danger { border-color: #5a2233; color: #ff8fa3; background: transparent; }
     .btn-danger:hover { background: #3a1522; }
-    .btn-small { padding: 6px 10px; font-size: 13px; border-radius: 8px; }
+    .btn-small { padding: 6px 10px; font-size: 13px; border-radius: var(--r-sm); }
     .check { display: flex; gap: 8px; align-items: center; font-weight: 400; color: var(--muted); }
-    .status { margin-top: 14px; padding: 12px 14px; border-radius: 10px; font-size: 14px; display: none; }
+    .status { margin-top: 14px; padding: 12px 14px; border-radius: var(--r-md); font-size: 14px; display: none; }
     .status.show { display: block; }
     .status.ok { background: #12351f; color: #8ff0b0; border: 1px solid #1f5c35; }
     .status.err { background: #3a1522; color: #ff8fa3; border: 1px solid #5a2233; }
@@ -37,21 +37,21 @@
     .list { display: flex; flex-direction: column; gap: 10px; }
     .item {
       display: grid; grid-template-columns: 112px 1fr auto; gap: 14px; align-items: center;
-      background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px;
+      background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px;
     }
-    .item img, .item .noimg { width: 112px; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; font-size: 12px; }
+    .item img, .item .noimg { width: 112px; aspect-ratio: 16/9; object-fit: cover; border-radius: var(--r-sm); font-size: 12px; background: var(--surface); }
     .item h3 { margin: 0; font-size: 16px; }
     .item small { color: var(--muted); word-break: break-all; }
     .item .ops { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
     .drop {
-      border: 2px dashed var(--line); border-radius: 12px; padding: 16px; text-align: center; color: var(--muted);
+      border: 2px dashed var(--line); border-radius: var(--r-md); padding: 16px; text-align: center; color: var(--muted);
       cursor: pointer; transition: border-color .15s, background .15s;
     }
-    .drop.over { border-color: var(--accent-3); background: #142a3d; }
-    .drop img { max-width: 100%; max-height: 240px; border-radius: 8px; display: block; margin: 0 auto 10px; }
+    .drop.over { border-color: var(--focus); background: #142a3d; }
+    .drop img { max-width: 100%; max-height: 240px; border-radius: var(--r-sm); display: block; margin: 0 auto 10px; }
     .hidden { display: none !important; }
     .user { color: var(--muted); font-size: 14px; display: flex; gap: 10px; align-items: center; }
-    .dirty { color: var(--accent); font-weight: 700; }
+    .dirty { color: var(--coin); font-weight: 700; }
     @media (max-width: 640px) {
       .row { grid-template-columns: 1fr; }
       .item { grid-template-columns: 80px 1fr; }
@@ -63,13 +63,13 @@
 <body>
   <div class="wrap">
     <header class="top">
-      <a class="logo" href="../"><span class="dot"></span>ADMIN</a>
+      <a class="logo" href="../"><span class="block" aria-hidden="true"></span>ADMIN</a>
       <span class="user" id="userBox"></span>
     </header>
 
     <!-- ---------- Login ---------- -->
     <section class="panel" id="loginPanel">
-      <h2>🔑 Anmelden</h2>
+      <h2>Anmelden</h2>
       <p class="hint">
         Das Admin-Panel speichert Änderungen direkt in deinem GitHub-Repo <b>Iamioo.github.io</b>.
         Dafür brauchst du einmalig einen <b>Token</b>:
@@ -92,12 +92,12 @@
     <div id="app" class="hidden">
       <!-- ---------- Liste ---------- -->
       <section class="panel">
-        <h2>🎮 Deine Spiele <span class="dirty hidden" id="dirtyMark">• ungespeichert</span></h2>
+        <h2>Deine Spiele <span class="dirty hidden" id="dirtyMark">• ungespeichert</span></h2>
         <p class="hint">Reihenfolge = Reihenfolge auf der Homepage. Änderungen gehen erst mit <b>„Veröffentlichen“</b> online.</p>
         <div class="list" id="list"></div>
         <div class="btns">
-          <button class="btn btn-ghost" id="newBtn">＋ Neues Spiel</button>
-          <button class="btn btn-play" id="publishBtn">🚀 Veröffentlichen</button>
+          <button class="btn btn-ghost" id="newBtn">+ Neues Spiel</button>
+          <button class="btn btn-play" id="publishBtn">Veröffentlichen</button>
         </div>
         <div class="status" id="publishStatus"></div>
       </section>
@@ -263,7 +263,7 @@
         repos.filter(r => r.name !== REPO).forEach(r => {
           const o = document.createElement('option');
           o.value = JSON.stringify({ name: r.name, desc: r.description || '', html: r.html_url, pages: r.has_pages, home: r.homepage || '', priv: r.private });
-          o.textContent = r.name + (r.has_pages ? '  🌐' : '') + (r.private ? '  🔒' : '');
+          o.textContent = r.name + (r.has_pages ? ' · Pages' : '') + (r.private ? ' · privat' : '');
           sel.appendChild(o);
         });
       } catch { /* fine-grained Token sieht evtl. nur ein Repo – egal */ }
@@ -278,7 +278,7 @@
 
     function renderList() {
       const list = $('list');
-      if (!games.length) { list.innerHTML = '<p class="hint">Noch keine Spiele. Klick auf „＋ Neues Spiel“.</p>'; return; }
+      if (!games.length) { list.innerHTML = '<p class="hint">Noch keine Spiele. Klick auf „+ Neues Spiel“.</p>'; return; }
       list.innerHTML = games.map((g, i) => `
         <div class="item">
           ${g.image ? `<img src="${esc(imgSrc(g.image))}" alt="">` : `<div class="noimg">${esc((g.title || '?').slice(0, 2).toUpperCase())}</div>`}
@@ -411,7 +411,7 @@
       };
       if (editIndex >= 0) games[editIndex] = g; else games.push(g);
       setDirty(true); renderList(); closeEditor();
-      status($('publishStatus'), 'info', `„${esc(title)}“ übernommen. Klick auf <b>🚀 Veröffentlichen</b>, damit es online geht.`);
+      status($('publishStatus'), 'info', `„${esc(title)}“ übernommen. Klick auf <b>Veröffentlichen</b>, damit es online geht.`);
     };
     function uniqueId(base) {
       let id = base, n = 2;
@@ -460,7 +460,7 @@
         }
         removedImages = new Set();
         setDirty(false);
-        status(st, 'ok', `✅ Veröffentlicht! In ca. 1 Minute ist alles live auf <a href="../" target="_blank">iamioo.github.io</a>.`);
+        status(st, 'ok', `Veröffentlicht. In ca. 1 Minute ist alles live auf <a href="../" target="_blank">iamioo.github.io</a>.`);
       } catch (e) {
         status(st, 'err', 'Fehler beim Veröffentlichen: ' + esc(e.message));
       } finally {
