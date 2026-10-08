@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Iamioo – Meine Spiele</title>
+  <meta name="description" content="Browser-Spiele von Iamioo – direkt online spielen.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <a class="logo" href="./"><span class="dot"></span>IAMIOO</a>
+      <a class="gh-link" href="https://github.com/Iamioo" target="_blank" rel="noopener">GitHub ↗</a>
+    </header>
+
+    <section class="hero">
+      <h1>Meine <span>Spiele</span></h1>
+      <p>Klick auf ein Spiel und spiel direkt im Browser – am PC oder auf dem Handy.</p>
+    </section>
+
+    <div class="toolbar">
+      <input class="search" id="search" type="search" placeholder="Spiel suchen …" aria-label="Spiel suchen">
+      <span class="count" id="count"></span>
+    </div>
+
+    <main class="grid" id="grid">
+      <p class="empty">Lade Spiele …</p>
+    </main>
+
+    <footer>
+      <span>© <span id="year"></span> Iamioo</span>
+      <span><a href="https://github.com/Iamioo" target="_blank" rel="noopener">GitHub</a> · <a href="admin/">Admin</a></span>
+    </footer>
+  </div>
+
+  <script>
+    const grid = document.getElementById('grid');
+    const search = document.getElementById('search');
+    const count = document.getElementById('count');
+    document.getElementById('year').textContent = new Date().getFullYear();
+    let games = [];
+
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const safeUrl = u => /^(https?:\/\/|\.?\/?[\w-])/i.test(u || '') && !/^javascript:/i.test(u) ? u : '#';
+
+    function render() {
+      const q = search.value.trim().toLowerCase();
+      const list = games.filter(g =>
+        !q || [g.title, g.description, ...(g.tags || [])].join(' ').toLowerCase().includes(q));
+      count.textContent = `${list.length} ${list.length === 1 ? 'Spiel' : 'Spiele'}`;
+      if (!list.length) { grid.innerHTML = '<p class="empty">Keine Spiele gefunden.</p>'; return; }
+      grid.innerHTML = list.map(g => `
+        <article class="card">
+          <a class="shot" href="${esc(safeUrl(g.url))}" target="_blank" rel="noopener" aria-label="${esc(g.title)} spielen">
+            ${g.image
+              ? `<img src="${esc(safeUrl(g.image))}" alt="Screenshot von ${esc(g.title)}" loading="lazy">`
+              : `<div class="noimg">${esc((g.title || '?').slice(0, 2).toUpperCase())}</div>`}
+            <span class="play"><b>▶ Spielen</b></span>
+          </a>
+          <div class="body">
+            <h2>${esc(g.title)}</h2>
+            <p>${esc(g.description)}</p>
+            ${g.tags?.length ? `<div class="tags">${g.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>` : ''}
+            <div class="actions">
+              <a class="btn btn-play" href="${esc(safeUrl(g.url))}" target="_blank" rel="noopener">▶ Spielen</a>
+              ${g.repo ? `<a class="btn btn-ghost" href="${esc(safeUrl(g.repo))}" target="_blank" rel="noopener">Code</a>` : ''}
+            </div>
+          </div>
+        </article>`).join('');
+    }
+
+    fetch('games.json?v=' + Date.now())
+      .then(r => r.json())
+      .then(data => { games = Array.isArray(data) ? data : []; render(); })
+      .catch(() => { grid.innerHTML = '<p class="empty">Spiele konnten nicht geladen werden.</p>'; });
+    search.addEventListener('input', render);
+  </script>
+</body>
+</html>

@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Admin – Iamioo Spiele</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛠️</text></svg>">
+  <style>
+    .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; margin-bottom: 24px; }
+    .panel h2 { margin: 0 0 6px; font-size: 20px; }
+    .hint { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
+    .hint a { color: var(--accent-3); }
+    label { display: block; font-weight: 600; font-size: 14px; margin: 14px 0 6px; }
+    input[type=text], input[type=url], input[type=password], textarea, select {
+      width: 100%; background: var(--bg-2); border: 1px solid var(--line); color: var(--text);
+      border-radius: 10px; padding: 11px 12px; font: inherit;
+    }
+    textarea { min-height: 84px; resize: vertical; }
+    input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent-3); outline-offset: 1px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+    .btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    button.btn { font: inherit; font-weight: 700; }
+    .btn-danger { border-color: #5a2233; color: #ff8fa3; background: transparent; }
+    .btn-danger:hover { background: #3a1522; }
+    .btn-small { padding: 6px 10px; font-size: 13px; border-radius: 8px; }
+    .check { display: flex; gap: 8px; align-items: center; font-weight: 400; color: var(--muted); }
+    .status { margin-top: 14px; padding: 12px 14px; border-radius: 10px; font-size: 14px; display: none; }
+    .status.show { display: block; }
+    .status.ok { background: #12351f; color: #8ff0b0; border: 1px solid #1f5c35; }
+    .status.err { background: #3a1522; color: #ff8fa3; border: 1px solid #5a2233; }
+    .status.info { background: #142a3d; color: #9fd8ff; border: 1px solid #1f4566; }
+    .list { display: flex; flex-direction: column; gap: 10px; }
+    .item {
+      display: grid; grid-template-columns: 112px 1fr auto; gap: 14px; align-items: center;
+      background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px;
+    }
+    .item img, .item .noimg { width: 112px; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; font-size: 12px; }
+    .item h3 { margin: 0; font-size: 16px; }
+    .item small { color: var(--muted); word-break: break-all; }
+    .item .ops { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .drop {
+      border: 2px dashed var(--line); border-radius: 12px; padding: 16px; text-align: center; color: var(--muted);
+      cursor: pointer; transition: border-color .15s, background .15s;
+    }
+    .drop.over { border-color: var(--accent-3); background: #142a3d; }
+    .drop img { max-width: 100%; max-height: 240px; border-radius: 8px; display: block; margin: 0 auto 10px; }
+    .hidden { display: none !important; }
+    .user { color: var(--muted); font-size: 14px; display: flex; gap: 10px; align-items: center; }
+    .dirty { color: var(--accent); font-weight: 700; }
+    @media (max-width: 640px) {
+      .row { grid-template-columns: 1fr; }
+      .item { grid-template-columns: 80px 1fr; }
+      .item img, .item .noimg { width: 80px; }
+      .item .ops { grid-column: 1 / -1; justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <a class="logo" href="../"><span class="dot"></span>ADMIN</a>
+      <span class="user" id="userBox"></span>
+    </header>
+
+    <!-- ---------- Login ---------- -->
+    <section class="panel" id="loginPanel">
+      <h2>🔑 Anmelden</h2>
+      <p class="hint">
+        Das Admin-Panel speichert Änderungen direkt in deinem GitHub-Repo <b>Iamioo.github.io</b>.
+        Dafür brauchst du einmalig einen <b>Token</b>:
+      </p>
+      <ol class="hint">
+        <li>Öffne <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a></li>
+        <li>Name z. B. „Spiele-Admin“, Ablaufdatum nach Wunsch</li>
+        <li><b>Repository access</b> → „Only select repositories“ → <b>Iamioo.github.io</b></li>
+        <li><b>Permissions → Repository permissions → Contents</b> → „Read and write“</li>
+        <li>„Generate token“ klicken und den Token hier einfügen</li>
+      </ol>
+      <label for="token">Token</label>
+      <input type="password" id="token" placeholder="github_pat_…" autocomplete="off">
+      <label class="check"><input type="checkbox" id="remember" checked> Auf diesem Gerät angemeldet bleiben</label>
+      <div class="btns"><button class="btn btn-play" id="loginBtn">Anmelden</button></div>
+      <p class="hint" style="margin-top:14px">Der Token bleibt nur in deinem Browser und wird ausschließlich an <code>api.github.com</code> geschickt.</p>
+      <div class="status" id="loginStatus"></div>
+    </section>
+
+    <div id="app" class="hidden">
+      <!-- ---------- Liste ---------- -->
+      <section class="panel">
+        <h2>🎮 Deine Spiele <span class="dirty hidden" id="dirtyMark">• ungespeichert</span></h2>
+        <p class="hint">Reihenfolge = Reihenfolge auf der Homepage. Änderungen gehen erst mit <b>„Veröffentlichen“</b> online.</p>
+        <div class="list" id="list"></div>
+        <div class="btns">
+          <button class="btn btn-ghost" id="newBtn">＋ Neues Spiel</button>
+          <button class="btn btn-play" id="publishBtn">🚀 Veröffentlichen</button>
+        </div>
+        <div class="status" id="publishStatus"></div>
+      </section>
+
+      <!-- ---------- Editor ---------- -->
+      <section class="panel hidden" id="editor">
+        <h2 id="editorTitle">Neues Spiel</h2>
+        <label for="fromRepo">Schnellstart: aus einem deiner Repos übernehmen (optional)</label>
+        <select id="fromRepo"><option value="">– Repo wählen –</option></select>
+
+        <div class="row">
+          <div>
+            <label for="fTitle">Titel *</label>
+            <input type="text" id="fTitle" placeholder="z. B. Super Mario 64">
+          </div>
+          <div>
+            <label for="fTags">Tags (mit Komma getrennt)</label>
+            <input type="text" id="fTags" placeholder="RPG, Mobile">
+          </div>
+        </div>
+        <label for="fDesc">Beschreibung</label>
+        <textarea id="fDesc" placeholder="Ein, zwei Sätze zum Spiel"></textarea>
+        <div class="row">
+          <div>
+            <label for="fUrl">Link zum Spiel *</label>
+            <input type="url" id="fUrl" placeholder="https://iamioo.github.io/…">
+          </div>
+          <div>
+            <label for="fRepo">Link zum Code (optional)</label>
+            <input type="url" id="fRepo" placeholder="https://github.com/Iamioo/…">
+          </div>
+        </div>
+
+        <label>Screenshot</label>
+        <div class="drop" id="drop" tabindex="0">
+          <img id="preview" class="hidden" alt="Vorschau">
+          <div id="dropText">Bild hierher ziehen, <b>klicken</b> zum Auswählen oder mit <b>Strg+V</b> einfügen</div>
+          <input type="file" id="file" accept="image/*" class="hidden">
+        </div>
+        <div class="btns">
+          <button class="btn btn-ghost btn-small" id="clearImg">Bild entfernen</button>
+        </div>
+
+        <div class="btns">
+          <button class="btn btn-play" id="saveItem">Übernehmen</button>
+          <button class="btn btn-ghost" id="cancelItem">Abbrechen</button>
+        </div>
+        <div class="status" id="editorStatus"></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const OWNER = 'Iamioo';
+    const REPO = 'Iamioo.github.io';
+    const BRANCH = 'main';
+    const API = 'https://api.github.com';
+    const KEY = 'iamioo-admin-token';
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    let token = '';
+    let games = [];
+    let gamesSha = null;
+    let editIndex = -1;          // -1 = neues Spiel
+    let pendingImages = {};      // pfad -> base64 (noch nicht hochgeladen)
+    let removedImages = new Set();
+    let draftImage = null;       // { path, b64, dataUrl } | { keep: 'img/..' } | null
+
+    // ---------- Helpers ----------
+    function storeGet(k) { try { return localStorage.getItem(k) || sessionStorage.getItem(k); } catch { return null; } }
+    function storeSet(k, v, persist) {
+      try { (persist ? localStorage : sessionStorage).setItem(k, v); } catch {}
+    }
+    function storeDel(k) { try { localStorage.removeItem(k); sessionStorage.removeItem(k); } catch {} }
+
+    function status(el, type, msg) {
+      el.className = 'status show ' + type;
+      el.innerHTML = msg;
+    }
+    function clearStatus(el) { el.className = 'status'; }
+
+    function setDirty(d) { $('dirtyMark').classList.toggle('hidden', !d); window.__dirty = d; }
+    window.addEventListener('beforeunload', e => { if (window.__dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+    function b64FromUtf8(str) {
+      const bytes = new TextEncoder().encode(str);
+      let bin = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      return btoa(bin);
+    }
+    function utf8FromB64(b64) {
+      const bin = atob(b64.replace(/\s/g, ''));
+      return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
+    }
+    function slug(s) {
+      return String(s).toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'spiel';
+    }
+
+    async function gh(path, opts = {}) {
+      const res = await fetch(API + path, {
+        ...opts,
+        headers: {
+          'Accept': 'application/vnd.github+json',
+          'Authorization': 'Bearer ' + token,
+          'X-GitHub-Api-Version': '2022-11-28',
+          ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
+        },
+      });
+      if (res.status === 404 && opts.allow404) return null;
+      if (!res.ok) {
+        let msg = res.status + ' ' + res.statusText;
+        try { msg = (await res.json()).message || msg; } catch {}
+        throw new Error(msg);
+      }
+      return res.status === 204 ? null : res.json();
+    }
+
+    // ---------- Login ----------
+    async function login(t, persist) {
+      token = t.trim();
+      if (!token) return;
+      status($('loginStatus'), 'info', 'Prüfe Token …');
+      try {
+        const repo = await gh(`/repos/${OWNER}/${REPO}`);
+        if (!repo.permissions?.push) throw new Error('Der Token hat keine Schreibrechte für ' + REPO + '. Bei „Contents“ muss „Read and write“ stehen.');
+        storeSet(KEY, token, persist);
+        let who = OWNER;
+        try { who = (await gh('/user')).login; } catch {}
+        $('userBox').innerHTML = `Angemeldet als <b>${esc(who)}</b> <button class="btn btn-ghost btn-small" id="logoutBtn">Abmelden</button>`;
+        $('logoutBtn').onclick = logout;
+        $('loginPanel').classList.add('hidden');
+        $('app').classList.remove('hidden');
+        await loadGames();
+        loadRepos();
+      } catch (e) {
+        token = '';
+        status($('loginStatus'), 'err', 'Anmeldung fehlgeschlagen: ' + esc(e.message));
+      }
+    }
+    function logout() {
+      if (window.__dirty && !confirm('Ungespeicherte Änderungen verwerfen?')) return;
+      storeDel(KEY); token = ''; setDirty(false); location.reload();
+    }
+    $('loginBtn').onclick = () => login($('token').value, $('remember').checked);
+    $('token').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginBtn').click(); });
+
+    // ---------- Daten ----------
+    async function loadGames() {
+      const file = await gh(`/repos/${OWNER}/${REPO}/contents/games.json?ref=${BRANCH}&t=${Date.now()}`, { allow404: true });
+      if (file) { games = JSON.parse(utf8FromB64(file.content)); gamesSha = file.sha; }
+      else { games = []; gamesSha = null; }
+      pendingImages = {}; removedImages = new Set(); setDirty(false);
+      renderList();
+    }
+
+    async function loadRepos() {
+      try {
+        const repos = await gh('/user/repos?per_page=100&sort=updated&affiliation=owner');
+        const sel = $('fromRepo');
+        repos.filter(r => r.name !== REPO).forEach(r => {
+          const o = document.createElement('option');
+          o.value = JSON.stringify({ name: r.name, desc: r.description || '', html: r.html_url, pages: r.has_pages, home: r.homepage || '', priv: r.private });
+          o.textContent = r.name + (r.has_pages ? '  🌐' : '') + (r.private ? '  🔒' : '');
+          sel.appendChild(o);
+        });
+      } catch { /* fine-grained Token sieht evtl. nur ein Repo – egal */ }
+    }
+
+    function imgSrc(path) {
+      if (!path) return '';
+      if (pendingImages[path]) return 'data:image/jpeg;base64,' + pendingImages[path];
+      if (/^https?:/i.test(path)) return path;
+      return `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${path}?t=${Date.now() % 1e6}`;
+    }
+
+    function renderList() {
+      const list = $('list');
+      if (!games.length) { list.innerHTML = '<p class="hint">Noch keine Spiele. Klick auf „＋ Neues Spiel“.</p>'; return; }
+      list.innerHTML = games.map((g, i) => `
+        <div class="item">
+          ${g.image ? `<img src="${esc(imgSrc(g.image))}" alt="">` : `<div class="noimg">${esc((g.title || '?').slice(0, 2).toUpperCase())}</div>`}
+          <div><h3>${esc(g.title)}</h3><small>${esc(g.url)}</small></div>
+          <div class="ops">
+            <button class="btn btn-ghost btn-small" data-op="up" data-i="${i}" ${i === 0 ? 'disabled' : ''} title="Nach oben">↑</button>
+            <button class="btn btn-ghost btn-small" data-op="down" data-i="${i}" ${i === games.length - 1 ? 'disabled' : ''} title="Nach unten">↓</button>
+            <button class="btn btn-ghost btn-small" data-op="edit" data-i="${i}">Bearbeiten</button>
+            <button class="btn btn-danger btn-small" data-op="del" data-i="${i}">Löschen</button>
+          </div>
+        </div>`).join('');
+    }
+
+    $('list').addEventListener('click', e => {
+      const b = e.target.closest('button[data-op]'); if (!b) return;
+      const i = +b.dataset.i;
+      if (b.dataset.op === 'up' && i > 0) { [games[i - 1], games[i]] = [games[i], games[i - 1]]; setDirty(true); renderList(); }
+      if (b.dataset.op === 'down' && i < games.length - 1) { [games[i + 1], games[i]] = [games[i], games[i + 1]]; setDirty(true); renderList(); }
+      if (b.dataset.op === 'edit') openEditor(i);
+      if (b.dataset.op === 'del' && confirm(`„${games[i].title}“ wirklich entfernen?`)) {
+        const img = games[i].image;
+        if (img && pendingImages[img]) delete pendingImages[img];
+        else if (img && img.startsWith('img/') && !games.some((g, j) => j !== i && g.image === img)) removedImages.add(img);
+        games.splice(i, 1); setDirty(true); renderList();
+        if (editIndex === i) closeEditor();
+      }
+    });
+
+    // ---------- Editor ----------
+    function openEditor(i) {
+      editIndex = i;
+      const g = i >= 0 ? games[i] : { title: '', description: '', url: '', repo: '', tags: [], image: '' };
+      $('editorTitle').textContent = i >= 0 ? `„${g.title}“ bearbeiten` : 'Neues Spiel';
+      $('fTitle').value = g.title || '';
+      $('fDesc').value = g.description || '';
+      $('fUrl').value = g.url || '';
+      $('fRepo').value = g.repo || '';
+      $('fTags').value = (g.tags || []).join(', ');
+      $('fromRepo').value = '';
+      draftImage = g.image ? { keep: g.image } : null;
+      showPreview(g.image ? imgSrc(g.image) : '');
+      clearStatus($('editorStatus'));
+      $('editor').classList.remove('hidden');
+      $('editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      $('fTitle').focus({ preventScroll: true });
+    }
+    function closeEditor() { $('editor').classList.add('hidden'); editIndex = -1; draftImage = null; }
+
+    function showPreview(src) {
+      $('preview').src = src || '';
+      $('preview').classList.toggle('hidden', !src);
+      $('dropText').innerHTML = src
+        ? 'Anderes Bild: hierher ziehen, <b>klicken</b> oder <b>Strg+V</b>'
+        : 'Bild hierher ziehen, <b>klicken</b> zum Auswählen oder mit <b>Strg+V</b> einfügen';
+    }
+
+    $('newBtn').onclick = () => openEditor(-1);
+    $('cancelItem').onclick = closeEditor;
+    $('clearImg').onclick = () => { draftImage = null; showPreview(''); };
+
+    $('fromRepo').onchange = () => {
+      if (!$('fromRepo').value) return;
+      const r = JSON.parse($('fromRepo').value);
+      if (!$('fTitle').value) $('fTitle').value = r.name.replace(/[-_]+/g, ' ');
+      if (!$('fDesc').value) $('fDesc').value = r.desc;
+      if (!$('fUrl').value) $('fUrl').value = r.home || (r.pages ? `https://${OWNER.toLowerCase()}.github.io/${r.name}/` : '');
+      if (!$('fRepo').value && !r.priv) $('fRepo').value = r.html;
+    };
+
+    // Bild: verkleinern & als JPEG kodieren
+    function loadImage(file) {
+      if (!file || !file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const maxW = 1280;
+          const scale = Math.min(1, maxW / img.width);
+          const c = document.createElement('canvas');
+          c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+          const ctx = c.getContext('2d');
+          ctx.fillStyle = '#000'; ctx.fillRect(0, 0, c.width, c.height);
+          ctx.drawImage(img, 0, 0, c.width, c.height);
+          const dataUrl = c.toDataURL('image/jpeg', 0.85);
+          draftImage = { b64: dataUrl.split(',')[1], dataUrl };
+          showPreview(dataUrl);
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    }
+    const drop = $('drop');
+    drop.onclick = () => $('file').click();
+    drop.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('file').click(); } };
+    $('file').onchange = () => { loadImage($('file').files[0]); $('file').value = ''; };
+    ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+    drop.addEventListener('drop', e => loadImage(e.dataTransfer.files[0]));
+    document.addEventListener('paste', e => {
+      if ($('editor').classList.contains('hidden')) return;
+      const item = [...(e.clipboardData?.items || [])].find(x => x.type.startsWith('image/'));
+      if (item) { e.preventDefault(); loadImage(item.getAsFile()); }
+    });
+
+    $('saveItem').onclick = () => {
+      const title = $('fTitle').value.trim();
+      const url = $('fUrl').value.trim();
+      if (!title || !url) { status($('editorStatus'), 'err', 'Bitte mindestens Titel und Link ausfüllen.'); return; }
+      if (!/^https?:\/\//i.test(url)) { status($('editorStatus'), 'err', 'Der Link muss mit https:// beginnen.'); return; }
+      const old = editIndex >= 0 ? games[editIndex] : null;
+      const id = old?.id || uniqueId(slug(title));
+      let image = '';
+      if (draftImage?.keep) image = draftImage.keep;
+      else if (draftImage?.b64) {
+        image = `img/${id}-${Date.now().toString(36)}.jpg`;
+        pendingImages[image] = draftImage.b64;
+      }
+      // altes Bild aufräumen, wenn ersetzt/entfernt
+      if (old?.image && old.image !== image) {
+        if (pendingImages[old.image]) delete pendingImages[old.image];
+        else if (old.image.startsWith('img/')) removedImages.add(old.image);
+      }
+      const g = {
+        id, title,
+        description: $('fDesc').value.trim(),
+        url,
+        repo: $('fRepo').value.trim(),
+        image,
+        tags: $('fTags').value.split(',').map(t => t.trim()).filter(Boolean),
+      };
+      if (editIndex >= 0) games[editIndex] = g; else games.push(g);
+      setDirty(true); renderList(); closeEditor();
+      status($('publishStatus'), 'info', `„${esc(title)}“ übernommen. Klick auf <b>🚀 Veröffentlichen</b>, damit es online geht.`);
+    };
+    function uniqueId(base) {
+      let id = base, n = 2;
+      while (games.some(g => g.id === id)) id = `${base}-${n++}`;
+      return id;
+    }
+
+    // ---------- Veröffentlichen ----------
+    async function putFile(path, b64, message, sha) {
+      return gh(`/repos/${OWNER}/${REPO}/contents/${path}`, {
+        method: 'PUT',
+        body: JSON.stringify({ message, content: b64, branch: BRANCH, ...(sha ? { sha } : {}) }),
+      });
+    }
+
+    $('publishBtn').onclick = async () => {
+      const btn = $('publishBtn');
+      btn.disabled = true;
+      const st = $('publishStatus');
+      try {
+        // Bilder zuerst hochladen
+        const imgs = Object.entries(pendingImages).filter(([p]) => games.some(g => g.image === p));
+        for (const [i, [path, b64]] of imgs.entries()) {
+          status(st, 'info', `Lade Bild ${i + 1}/${imgs.length} hoch …`);
+          await putFile(path, b64, `Screenshot hinzugefügt: ${path}`);
+          delete pendingImages[path];
+        }
+        // games.json speichern (mit aktuellem sha, falls zwischendurch geändert)
+        status(st, 'info', 'Speichere Spieleliste …');
+        const current = await gh(`/repos/${OWNER}/${REPO}/contents/games.json?ref=${BRANCH}&t=${Date.now()}`, { allow404: true });
+        if (current && gamesSha && current.sha !== gamesSha &&
+            !confirm('games.json wurde inzwischen woanders geändert. Trotzdem mit deiner Version überschreiben?')) {
+          throw new Error('Abgebrochen – lade die Seite neu, um die aktuelle Version zu sehen.');
+        }
+        const res = await putFile('games.json', b64FromUtf8(JSON.stringify(games, null, 2) + '\n'),
+          'Spieleliste über Admin-Panel aktualisiert', current?.sha);
+        gamesSha = res.content.sha;
+        // alte Bilder löschen
+        for (const path of removedImages) {
+          try {
+            const f = await gh(`/repos/${OWNER}/${REPO}/contents/${path}?ref=${BRANCH}`, { allow404: true });
+            if (f) await gh(`/repos/${OWNER}/${REPO}/contents/${path}`, {
+              method: 'DELETE', body: JSON.stringify({ message: `Screenshot entfernt: ${path}`, sha: f.sha, branch: BRANCH }),
+            });
+          } catch {}
+        }
+        removedImages = new Set();
+        setDirty(false);
+        status(st, 'ok', `✅ Veröffentlicht! In ca. 1 Minute ist alles live auf <a href="../" target="_blank">iamioo.github.io</a>.`);
+      } catch (e) {
+        status(st, 'err', 'Fehler beim Veröffentlichen: ' + esc(e.message));
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    // ---------- Start ----------
+    const saved = storeGet(KEY);
+    if (saved) login(saved, !!(function () { try { return localStorage.getItem(KEY); } catch { return null; } })());
+  </script>
+</body>
+</html>

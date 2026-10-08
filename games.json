@@ -1,0 +1,20 @@
+[
+  {
+    "id": "mario64",
+    "title": "Super Mario 64",
+    "description": "Der N64-Klassiker als WebGL-Port – läuft direkt im Browser, auch auf dem Handy.",
+    "url": "https://iamioo.github.io/Mario64/",
+    "repo": "https://github.com/Iamioo/Mario64",
+    "image": "img/mario64.jpg",
+    "tags": ["3D", "Jump 'n' Run", "Mobile"]
+  },
+  {
+    "id": "omori",
+    "title": "OMORI",
+    "description": "Web-Port des Psycho-Horror-RPGs mit Touch-Steuerung für Handy und Tablet.",
+    "url": "https://iamioo.github.io/omoriwebport/omori-fixed/",
+    "repo": "https://github.com/Iamioo/omoriwebport",
+    "image": "img/omori.jpg",
+    "tags": ["RPG", "Story", "Mobile"]
+  }
+]
