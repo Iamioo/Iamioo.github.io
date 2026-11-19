@@ -1,12 +1,29 @@
 [
   {
+    "id": "wupper-wanted",
+    "title": "Wupper Wanted",
+    "description": "Open-World-Spiel im echten Wuppertal – Straßen, Häuser, Wupper und Schwebebahn live aus OpenStreetMap.",
+    "url": "https://iamioo.github.io/wupper-wanted/",
+    "repo": "https://github.com/Iamioo/Iamioo.github.io",
+    "image": "img/wupper-wanted.jpg",
+    "tags": [
+      "Open World",
+      "Wuppertal",
+      "Mobile"
+    ]
+  },
+  {
     "id": "mario64",
     "title": "Super Mario 64",
     "description": "Der N64-Klassiker als WebGL-Port – läuft direkt im Browser, auch auf dem Handy.",
     "url": "https://iamioo.github.io/Mario64/",
     "repo": "https://github.com/Iamioo/Mario64",
     "image": "img/mario64.jpg",
-    "tags": ["3D", "Jump 'n' Run", "Mobile"]
+    "tags": [
+      "3D",
+      "Jump 'n' Run",
+      "Mobile"
+    ]
   },
   {
     "id": "omori",
@@ -15,6 +32,10 @@
     "url": "https://iamioo.github.io/omoriwebport/omori-fixed/",
     "repo": "https://github.com/Iamioo/omoriwebport",
     "image": "img/omori.jpg",
-    "tags": ["RPG", "Story", "Mobile"]
+    "tags": [
+      "RPG",
+      "Story",
+      "Mobile"
+    ]
   }
 ]
