@@ -1,18 +1,5 @@
 [
   {
-    "id": "wupper-wanted",
-    "title": "Wupper Wanted",
-    "description": "Open-World-Spiel im echten Wuppertal – Straßen, Häuser, Wupper und Schwebebahn live aus OpenStreetMap.",
-    "url": "https://iamioo.github.io/wupper-wanted/",
-    "repo": "https://github.com/Iamioo/Iamioo.github.io",
-    "image": "img/wupper-wanted.jpg",
-    "tags": [
-      "Open World",
-      "Wuppertal",
-      "Mobile"
-    ]
-  },
-  {
     "id": "mario64",
     "title": "Super Mario 64",
     "description": "Der N64-Klassiker als WebGL-Port – läuft direkt im Browser, auch auf dem Handy.",
