@@ -9,7 +9,7 @@ Seite: https://iamioo.github.io/notizkonverter/
 ## Was die App kann
 
 1. Notability-Notiz (`.note`) in ein GoodNotes-Notizbuch (`.goodnotes`) umwandeln und umgekehrt. Striche behalten Farbe, Breite, Druck und Deckkraft (Textmarker).
-2. Bilder (PNG, JPG, HEIC) in Striche zerlegen. Jedes Bild wird eine Seite. Empfindlichkeit, Strichstärke und Genauigkeit lassen sich einstellen, das Originalbild kann als Hintergrund bleiben.
+2. Bilder (PNG, JPG, HEIC) in Striche zerlegen. Jedes Bild wird eine Seite. Mit „Flächen ausfüllen“ werden ausgemalte Bereiche mit Strichen gefüllt statt nur umrandet. Empfindlichkeit, Strichstärke und Genauigkeit lassen sich einstellen, das Originalbild kann als Hintergrund bleiben.
 3. Beides zusätzlich als PDF ausgeben.
 
 Auf dem iPad öffnet der Export das Teilen-Menü. Dort direkt GoodNotes oder Notability wählen.
@@ -20,7 +20,7 @@ Beide Formate sind nicht offiziell dokumentiert. Die Schreiber stammen aus dem P
 
 Beim Umwandeln von Notizen fehlen noch PDF-Hintergründe, eingefügte Bilder, getippter Text und Audioaufnahmen. In GoodNotes gezeichnete Formen werden übersprungen.
 
-Die Bilderkennung ist für Strichzeichnungen gedacht. Ausgemalte Flächen werden zu Mittellinien.
+Fotos mit vielen Farbverläufen werden auf höchstens 12 Farben reduziert.
 
 ## Lokal starten
 

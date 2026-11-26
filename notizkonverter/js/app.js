@@ -137,6 +137,7 @@ async function processImages() {
         sensitivity: Number($('opt-sens').value),
         keepColors: $('opt-colors').checked,
         widthScale: Number($('opt-width').value),
+        fill: $('opt-fill').checked,
       };
       const pages = [];
       for (let i = 0; i < items.length; i++) {
@@ -185,7 +186,7 @@ setupDrop('img-drop', 'img-file', (files) => {
 
 let timer = 0;
 const later = () => { clearTimeout(timer); timer = setTimeout(() => imageFiles.length && processImages(), 250); };
-['opt-sens', 'opt-width', 'opt-detail', 'opt-colors'].forEach((id) => $(id).addEventListener('input', later));
+['opt-sens', 'opt-width', 'opt-detail', 'opt-colors', 'opt-fill'].forEach((id) => $(id).addEventListener('input', later));
 ['opt-bg', 'opt-ghost'].forEach((id) => $(id).addEventListener('change', redrawImages));
 
 /* ---------- Export ---------- */

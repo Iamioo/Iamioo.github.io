@@ -130,11 +130,11 @@ Noch nicht übernommen: PDF-Hintergründe, eingefügte Bilder, getippter Text, A
 
 `js/vectorize.js`:
 
-1. Tinte erkennen: Pro Pixel zählt 255 minus der kleinste Farbkanal, so fallen auch gelbe und hellblaue Linien auf. Verglichen wird mit dem örtlichen Mittelwert (Integralbild), damit Schatten und graues Papier nicht als Tinte gelten.
-2. Flecken unter etwa 0,0015 % der Bildfläche entfernen.
-3. Abstandskarte (Chamfer 3-4) liefert die halbe Strichbreite.
-4. Skelett nach Zhang-Suen, danach Treppenstufen entfernen.
-5. Skelett in Pfade zerlegen. Knoten erkennt die Übergangszahl (mindestens drei Übergänge im Nachbarkreis). Pfade werden zusätzlich an Knicken über etwa 80° und an Farbwechseln getrennt, weil Kreuzungen im Skelett oft keinen sauberen Knoten bilden.
-6. Pfade glätten und mit Douglas-Peucker (0,8 px) vereinfachen. Breite = doppelter mittlerer Abstand, Farbe = Mittel der Kernpixel.
+1. Zeichnung vom Papier trennen: Ein Pixel gehört zur Zeichnung, wenn es sich von der Papierfarbe (häufigste helle Farbe) unterscheidet oder dunkler ist als seine Umgebung (örtlicher Mittelwert über ein Integralbild).
+2. Die Farben der Zeichnung per k-Means auf höchstens 12 zusammenfassen. Jede Farbe wird einzeln weiterverarbeitet, dadurch bekommen sich kreuzende Linien ihre richtige Farbe.
+3. Pro Farbe trennt die Abstandskarte (Chamfer 3-4) dünne Teile von Flächen. Als Fläche gilt alles in Reichweite eines Pixels, das weiter als T vom Rand entfernt ist (T etwa 4 px mit Füllen, 9 px ohne, bezogen auf 1400 px Bildbreite).
+4. Dünne Teile: Skelett nach Zhang-Suen, Treppenstufen entfernen, in Pfade zerlegen (Knoten über die Übergangszahl), an Knicken über etwa 80° trennen, dreimal glätten, mit Douglas-Peucker (0,35 px) vereinfachen. Geschlossene Formen teilt der Vereinfacher am entferntesten Punkt, sonst würden Kreise zu einem Punkt. Die örtliche Strichbreite wird zum Stiftdruck (Umkehrung von `widthFactor`), Notability zeigt dadurch dicke und dünne Stellen.
+5. Flächen: Mit „Flächen ausfüllen“ werden sie mit waagrechten Strichen im Abstand von etwa 2,5 px ausgemalt und bekommen einen Umriss. Ohne die Option bekommen große Flächen nur einen Umriss, kleine (Augen, Punkte) werden trotzdem ausgemalt.
+6. Hellere Farben liegen unten, dunkle Linien oben.
 
-Flächige Füllungen werden zu Mittellinien. Das Verfahren passt deshalb zu Strichzeichnungen, nicht zu Fotos oder ausgemalten Flächen. Für die gilt die Option „Originalbild als Hintergrund behalten“.
+Ausgefüllte Bilder erzeugen viele Striche (ein Comic mit 1000 px Breite etwa 1400). GoodNotes und Notability kommen damit zurecht, die Dateien werden ein paar hundert KB groß.

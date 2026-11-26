@@ -41,6 +41,33 @@ export function inkMask(img, { sensitivity = 0.5 } = {}) {
   return { mask, transparentShare: transparent / N };
 }
 
+// Zusammenhängende Teile einer Maske mit Rahmen
+function components(mask, W, H) {
+  const seen = new Uint8Array(W * H);
+  const out = [];
+  const stack = [];
+  for (let s = 0; s < W * H; s++) {
+    if (!mask[s] || seen[s]) continue;
+    const comp = { px: [], x0: W, y0: H, x1: 0, y1: 0 };
+    seen[s] = 1; stack.push(s);
+    while (stack.length) {
+      const p = stack.pop();
+      comp.px.push(p);
+      const x = p % W, y = (p / W) | 0;
+      if (x < comp.x0) comp.x0 = x; if (x > comp.x1) comp.x1 = x;
+      if (y < comp.y0) comp.y0 = y; if (y > comp.y1) comp.y1 = y;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const q = ny * W + nx;
+        if (mask[q] && !seen[q]) { seen[q] = 1; stack.push(q); }
+      }
+    }
+    out.push(comp);
+  }
+  return out;
+}
+
 function removeSpecks(mask, W, H, minArea) {
   const label = new Int32Array(W * H);
   const stack = [];
@@ -200,7 +227,15 @@ function trace(sk, W, H) {
 function rdp(pts, eps) {
   if (pts.length < 3) return pts;
   const [ax, ay] = pts[0], [bx, by] = pts[pts.length - 1];
-  const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1;
+  const dx = bx - ax, dy = by - ay;
+  if (Math.hypot(dx, dy) < 1) {
+    // geschlossene Form: am weitesten entfernten Punkt teilen, sonst schrumpft sie zu einem Punkt
+    let far = 1, fd = 0;
+    for (let i = 1; i < pts.length - 1; i++) { const d = Math.hypot(pts[i][0] - ax, pts[i][1] - ay); if (d > fd) { fd = d; far = i; } }
+    if (fd < eps) return [pts[0], pts[pts.length - 1]];
+    return rdp(pts.slice(0, far + 1), eps).slice(0, -1).concat(rdp(pts.slice(far), eps));
+  }
+  const len = Math.hypot(dx, dy);
   let max = 0, idx = 0;
   for (let i = 1; i < pts.length - 1; i++) {
     const d = Math.abs(dy * pts[i][0] - dx * pts[i][1] + bx * ay - by * ax) / len;
@@ -210,14 +245,19 @@ function rdp(pts, eps) {
   return rdp(pts.slice(0, idx + 1), eps).slice(0, -1).concat(rdp(pts.slice(idx), eps));
 }
 
-// Glättet die Treppenstufen der Pixel (gleitender Mittelwert, Enden bleiben)
-function smooth(pts) {
+// Glättet die Treppenstufen der Pixel (Gauß-ähnlich, mehrere Durchgänge). Enden bleiben fest.
+// Die dritte Koordinate (örtlicher Radius) wird mitgeglättet.
+function smooth(pts, passes = 3) {
   if (pts.length < 4) return pts;
-  return pts.map((p, i) => {
-    if (i === 0 || i === pts.length - 1) return p;
-    const a = pts[i - 1], b = pts[i + 1];
-    return [(a[0] + 2 * p[0] + b[0]) / 4, (a[1] + 2 * p[1] + b[1]) / 4];
-  });
+  let cur = pts;
+  for (let k = 0; k < passes; k++) {
+    cur = cur.map((p, i) => {
+      if (i === 0 || i === cur.length - 1) return p;
+      const a = cur[i - 1], b = cur[i + 1];
+      return [(a[0] + 2 * p[0] + b[0]) / 4, (a[1] + 2 * p[1] + b[1]) / 4, (a[2] + 2 * p[2] + b[2]) / 4];
+    });
+  }
+  return cur;
 }
 
 // Teilt einen Pfad an scharfen Knicken (> ~80°). Dort treffen sich meist zwei Linien,
@@ -267,15 +307,13 @@ function splitColor(path, data) {
 
 const hex2 = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
 
-// Ergebnis: Striche in Pixelkoordinaten des Bildes
-export function vectorize(img, { sensitivity = 0.5, keepColors = true, widthScale = 1 } = {}) {
-  const { width: W, height: H, data } = img;
-  const { mask } = inkMask(img, { sensitivity });
-  removeSpecks(mask, W, H, Math.max(4, Math.round(W * H * 0.000015)));
+// Linien aus einer Maske: Skelett -> Pfade -> geglättete Striche mit Druck aus der Strichbreite.
+// color: feste Farbe (Füllmodus) oder null (Farbe aus den Pixeln)
+function lineStrokes(mask, W, H, data, { keepColors, widthScale, color = null }) {
   const dist = distance(mask, W, H);
   const sk = thin(mask, W, H);
   let paths = trace(sk, W, H).flatMap((p) => splitSharp(p, W));
-  if (keepColors) paths = paths.flatMap((p) => splitColor(p, data));
+  if (keepColors && !color) paths = paths.flatMap((p) => splitColor(p, data));
 
   const strokes = [];
   for (const { px, ends } of paths) {
@@ -285,30 +323,189 @@ export function vectorize(img, { sensitivity = 0.5, keepColors = true, widthScal
     // kurze Sporne an Ecken dicker Linien weglassen
     if (ends === 1 && px.length < avgR * 2.2) continue;
     if (px.length === 1 && avgR < 1) continue;
-    let r = 0, g = 0, b = 0, cnt = 0;
-    for (const p of px) {
-      // Farbe aus dem Strichkern, nicht vom Rand
-      if (dist[p] < avgR * 0.6 && px.length > 3) continue;
-      r += data[p * 4]; g += data[p * 4 + 1]; b += data[p * 4 + 2]; cnt++;
-    }
-    if (!cnt) for (const p of px) { r += data[p * 4]; g += data[p * 4 + 1]; b += data[p * 4 + 2]; cnt++; }
-    r /= cnt; g /= cnt; b /= cnt;
-    let c = '#000000';
-    const spread = Math.max(r, g, b) - Math.min(r, g, b);
-    if (keepColors && (spread > 40 || Math.max(r, g, b) > 110)) {
-      // Farbe kräftiger machen: Fotos wirken sonst ausgewaschen
-      const mn = Math.min(r, g, b), mx = Math.max(r, g, b);
-      const f = mx > mn ? 255 / mx : 1;
-      c = '#' + hex2(r * f * 0.85) + hex2(g * f * 0.85) + hex2(b * f * 0.85);
-      if (spread < 40) c = '#' + hex2(r * 0.6) + hex2(g * 0.6) + hex2(b * 0.6);
-    }
-    let pts = px.map((p) => [p % W, (p / W) | 0]);
-    pts = rdp(smooth(pts), 0.8);
+    let c = color || '#000000';
+    if (!color && keepColors) c = pathColor(px, dist, avgR, data);
+    // Radius pro Punkt mitführen, später wird daraus der Stiftdruck
+    let pts = px.map((p) => [p % W, (p / W) | 0, Math.max(0.5, dist[p])]);
+    pts = rdp(smooth(pts), 0.35);
+    pts = pts.map(([x, y, r]) => [x, y, Math.max(0, Math.min(1, (r / avgR - 0.55) / 0.9))]);
     strokes.push({ pts, w: avgR * 2 * widthScale, c });
   }
   // Lange Striche zuerst, das sieht beim Aufbau natürlicher aus
   strokes.sort((a, b) => b.pts.length - a.pts.length);
-  return { strokes, inkPixels: mask.reduce((s, v) => s + v, 0) };
+  return strokes;
+}
+
+function pathColor(px, dist, avgR, data) {
+  let r = 0, g = 0, b = 0, cnt = 0;
+  for (const p of px) {
+    // Farbe aus dem Strichkern, nicht vom Rand
+    if (dist[p] < avgR * 0.6 && px.length > 3) continue;
+    r += data[p * 4]; g += data[p * 4 + 1]; b += data[p * 4 + 2]; cnt++;
+  }
+  if (!cnt) for (const p of px) { r += data[p * 4]; g += data[p * 4 + 1]; b += data[p * 4 + 2]; cnt++; }
+  r /= cnt; g /= cnt; b /= cnt;
+  const spread = Math.max(r, g, b) - Math.min(r, g, b);
+  if (spread <= 40 && Math.max(r, g, b) <= 110) return '#000000';
+  if (spread < 40) return '#' + hex2(r * 0.6) + hex2(g * 0.6) + hex2(b * 0.6);
+  // Farbe kräftiger machen: Fotos wirken sonst ausgewaschen
+  const f = 255 / Math.max(r, g, b);
+  return '#' + hex2(r * f * 0.85) + hex2(g * f * 0.85) + hex2(b * f * 0.85);
+}
+
+/* ---------- Farben und Flächen ---------- */
+
+// Papierfarbe: häufigste helle Farbe im Bild
+function paperColor(data, N) {
+  const hist = new Map();
+  for (let i = 0; i < N; i += 3) {
+    if (data[i * 4 + 3] < 128) continue;
+    const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
+    if (r + g + b < 360) continue;
+    const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+    hist.set(key, (hist.get(key) || 0) + 1);
+  }
+  let best = -1, bestN = 0;
+  for (const [k, n] of hist) if (n > bestN) { best = k; bestN = n; }
+  if (best < 0) return [255, 255, 255];
+  return [((best >> 10) & 31) * 8 + 4, ((best >> 5) & 31) * 8 + 4, (best & 31) * 8 + 4];
+}
+
+// Farben der Zeichnung per k-Means zu einer kleinen Palette zusammenfassen
+function palette(data, idx, k) {
+  const step = Math.max(1, Math.floor(idx.length / 20000));
+  const sample = [];
+  for (let i = 0; i < idx.length; i += step) { const p = idx[i]; sample.push([data[p * 4], data[p * 4 + 1], data[p * 4 + 2]]); }
+  if (!sample.length) return [];
+  const d2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
+  // Start: dunkelste Farbe, dann jeweils die am weitesten entfernte
+  let cents = [sample.reduce((a, b) => (a[0] + a[1] + a[2] < b[0] + b[1] + b[2] ? a : b)).slice()];
+  while (cents.length < k) {
+    let far = null, farD = 0;
+    for (const s of sample) { const d = Math.min(...cents.map((c) => d2(s, c))); if (d > farD) { farD = d; far = s; } }
+    if (!far || farD < 900) break;
+    cents.push(far.slice());
+  }
+  for (let it = 0; it < 10; it++) {
+    const sum = cents.map(() => [0, 0, 0, 0]);
+    for (const s of sample) {
+      let bi = 0, bd = Infinity;
+      cents.forEach((c, j) => { const d = d2(s, c); if (d < bd) { bd = d; bi = j; } });
+      sum[bi][0] += s[0]; sum[bi][1] += s[1]; sum[bi][2] += s[2]; sum[bi][3]++;
+    }
+    cents = sum.filter((v) => v[3]).map((v) => [v[0] / v[3], v[1] / v[3], v[2] / v[3]]);
+  }
+  // fast gleiche Farben zusammenlegen
+  const out = [];
+  for (const c of cents) if (!out.some((o) => d2(o, c) < 35 * 35)) out.push(c);
+  return out;
+}
+
+// Fläche mit waagrechten Strichen ausmalen (hatch = true), dazu ein Umriss für saubere Kanten
+function fillStrokes(region, W, H, spacing, c, hatch, outlineW) {
+  const strokes = [];
+  const half = spacing / 2;
+  for (let y = Math.floor(half); hatch && y < H; y += spacing) {
+    let x = 0;
+    while (x < W) {
+      if (!region[y * W + x]) { x++; continue; }
+      const x0 = x;
+      // kleine Lücken (1 px) überbrücken
+      while (x < W && (region[y * W + x] || (x + 1 < W && region[y * W + x + 1]))) x++;
+      strokes.push({ pts: [[x0, y, 0.5], [Math.max(x0, x - 1), y, 0.5]], w: spacing * 1.5, c });
+    }
+  }
+  // Umriss: Randpixel der Fläche als Linien
+  const edge = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x;
+    if (!region[i]) continue;
+    if (x === 0 || y === 0 || x === W - 1 || y === H - 1 || !region[i - 1] || !region[i + 1] || !region[i - W] || !region[i + W]) edge[i] = 1;
+  }
+  const sk = thin(edge, W, H);
+  for (const { px } of trace(sk, W, H)) {
+    if (px.length < 3) continue;
+    let pts = px.map((p) => [p % W, (p / W) | 0, 0.5]);
+    pts = rdp(smooth(pts, 2), 0.4);
+    strokes.push({ pts, w: hatch ? spacing * 1.2 : outlineW, c });
+  }
+  return strokes;
+}
+
+function colorMode(img, { sensitivity, widthScale, keepColors, fill }) {
+  const { width: W, height: H, data } = img;
+  const N = W * H;
+  const res = Math.max(W, H) / 1400;              // Maße an die Auflösung anpassen
+  const { mask: ink } = inkMask(img, { sensitivity });
+  const bg = paperColor(data, N);
+  const thr = 14 + (1 - sensitivity) * 36;        // ab dieser Farbabweichung zählt ein Pixel zur Zeichnung
+  const fg = [];
+  for (let i = 0; i < N; i++) {
+    if (data[i * 4 + 3] < 128) continue;
+    const d = Math.hypot(data[i * 4] - bg[0], data[i * 4 + 1] - bg[1], data[i * 4 + 2] - bg[2]);
+    if (ink[i] || d > thr) fg.push(i);
+  }
+  const cents = palette(data, fg, 12);
+  const label = new Int8Array(N).fill(-1);
+  for (const p of fg) {
+    let bi = 0, bd = Infinity;
+    cents.forEach((c, j) => {
+      const d = (data[p * 4] - c[0]) ** 2 + (data[p * 4 + 1] - c[1]) ** 2 + (data[p * 4 + 2] - c[2]) ** 2;
+      if (d < bd) { bd = d; bi = j; }
+    });
+    label[p] = bi;
+  }
+  // Ab diesem Radius gilt etwas als Fläche. Ohne Füllen bleiben auch dicke Linien Linien.
+  const T = fill ? Math.max(3, 4 * res) : Math.max(6, 9 * res);
+  const spacing = Math.max(2, Math.round(2.5 * res));
+  const outlineW = Math.max(1.5, 3 * res) * widthScale;
+  const fills = [], lines = [];
+  // Hellste Farben zuerst ausmalen, dunkle Linien liegen oben
+  const order = cents.map((c, j) => [c[0] + c[1] + c[2], j]).sort((a, b) => b[0] - a[0]).map(([, j]) => j);
+  for (const j of order) {
+    const c = cents[j];
+    // ohne Farben: Graustufen, damit Flächen trotzdem unterscheidbar bleiben
+    const g = 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
+    const hex = keepColors ? '#' + hex2(c[0]) + hex2(c[1]) + hex2(c[2]) : fill ? '#' + hex2(g) + hex2(g) + hex2(g) : '#000000';
+    const m = new Uint8Array(N);
+    for (let i = 0; i < N; i++) if (label[i] === j) m[i] = 1;
+    removeSpecks(m, W, H, Math.max(6, Math.round(N * 0.00002)));
+    const dist = distance(m, W, H);
+    // Kern = weit vom Rand; Fläche = alles in Reichweite T eines Kernpixels
+    const notCore = new Uint8Array(N);
+    let anyCore = false;
+    for (let i = 0; i < N; i++) { if (dist[i] >= T) anyCore = true; else notCore[i] = 1; }
+    const region = new Uint8Array(N);
+    if (anyCore) {
+      const dc = distance(notCore, W, H);
+      for (let i = 0; i < N; i++) if (m[i] && dc[i] <= T + 0.5) region[i] = 1;
+      // Jede Fläche einzeln: kleine Flecken (Augen, Punkte) werden immer ausgemalt
+      for (const comp of components(region, W, H)) {
+        let maxD = 0;
+        for (const p of comp.px) if (dist[p] > maxD) maxD = dist[p];
+        const hatch = fill || maxD < 4 * T;
+        const cw = comp.x1 - comp.x0 + 3, ch = comp.y1 - comp.y0 + 3;
+        const crop = new Uint8Array(cw * ch);
+        for (const p of comp.px) crop[((p / W | 0) - comp.y0 + 1) * cw + (p % W) - comp.x0 + 1] = 1;
+        for (const st of fillStrokes(crop, cw, ch, spacing, hex, hatch, outlineW)) {
+          st.pts = st.pts.map(([x, y, pr]) => [x + comp.x0 - 1, y + comp.y0 - 1, pr]);
+          fills.push(st);
+        }
+      }
+    }
+    const thinPart = new Uint8Array(N);
+    for (let i = 0; i < N; i++) if (m[i] && !region[i]) thinPart[i] = 1;
+    removeSpecks(thinPart, W, H, Math.max(6, Math.round(N * 0.00002)));
+    lines.push(...lineStrokes(thinPart, W, H, data, { keepColors: true, widthScale, color: hex }));
+  }
+  return { strokes: fills.concat(lines), inkPixels: fg.length };
+}
+
+// Ergebnis: Striche in Pixelkoordinaten des Bildes. Dritte Koordinate = Stiftdruck 0..1.
+// Jede Farbe wird getrennt bearbeitet: dünne Teile werden Linien, breite Flächen bekommen
+// einen Umriss und mit fill = true zusätzlich eine Füllung.
+export function vectorize(img, { sensitivity = 0.5, keepColors = true, widthScale = 1, fill = false } = {}) {
+  return colorMode(img, { sensitivity, widthScale, keepColors, fill });
 }
 
 // Pixel-Striche auf das Blatt setzen: Bild zentriert einpassen
@@ -318,7 +515,7 @@ export function placeOnPage(strokes, imgW, imgH, page, margin = 24) {
   return {
     rect: [ox, oy, imgW * k, imgH * k],
     strokes: strokes.map((s) => ({
-      pts: s.pts.map(([x, y]) => [ox + (x + 0.5) * k, oy + (y + 0.5) * k, 0.5]),
+      pts: s.pts.map(([x, y, p]) => [ox + (x + 0.5) * k, oy + (y + 0.5) * k, p ?? 0.5]),
       w: Math.max(0.5, s.w * k),
       c: s.c,
     })),
