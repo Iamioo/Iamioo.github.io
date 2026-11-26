@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Notizkonverter</title>
+  <meta name="description" content="Notability-Notizen in GoodNotes umwandeln und Zeichnungen aus Bildern in bearbeitbare Striche verwandeln. Läuft komplett im Browser.">
+  <meta name="theme-color" content="#1f3a5f">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="css/style.css?v=1">
+</head>
+<body>
+  <header>
+    <h1>Notizkonverter</h1>
+    <p class="sub">Notability und GoodNotes umwandeln, Zeichnungen aus Bildern als Striche übernehmen. Deine Dateien verlassen das Gerät nicht.</p>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-view="note" role="tab">Notiz umwandeln</button>
+      <button class="tab" data-view="image" role="tab">Bild zu Notiz</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Notiz umwandeln -->
+    <section id="view-note" class="view active">
+      <label class="drop" id="note-drop">
+        <input type="file" id="note-file" hidden>
+        <strong>.note- oder .goodnotes-Datei wählen</strong>
+        <span>oder hierher ziehen</span>
+      </label>
+      <p class="hint">In Notability: Notiz teilen, Format „Notiz“. In GoodNotes: Notizbuch exportieren, Format „GoodNotes“.</p>
+
+      <div id="note-result" hidden>
+        <div class="info">
+          <h2 id="note-title"></h2>
+          <p id="note-stats"></p>
+          <ul id="note-warnings" class="warnings"></ul>
+        </div>
+        <div class="actions">
+          <button class="primary" data-export="goodnotes" data-src="note">Als GoodNotes (.goodnotes)</button>
+          <button class="primary" data-export="notability" data-src="note">Als Notability (.note)</button>
+          <button data-export="pdf" data-src="note">Als PDF</button>
+        </div>
+        <div id="note-pages" class="pages"></div>
+      </div>
+    </section>
+
+    <!-- Bild zu Notiz -->
+    <section id="view-image" class="view">
+      <label class="drop" id="img-drop">
+        <input type="file" id="img-file" accept="image/*" multiple hidden>
+        <strong>Bilder oder PNGs wählen</strong>
+        <span>oder hierher ziehen. Jedes Bild wird eine Seite.</span>
+      </label>
+      <p class="hint">Am besten klappt es mit Strichzeichnungen auf hellem Grund: Skizzen, Diagramme, Unterschriften, Fotos von Tafel oder Papier.</p>
+
+      <div id="img-result" hidden>
+        <fieldset class="settings">
+          <label>Empfindlichkeit
+            <input type="range" id="opt-sens" min="0" max="1" step="0.05" value="0.5">
+          </label>
+          <label>Strichstärke
+            <input type="range" id="opt-width" min="0.4" max="2" step="0.1" value="1">
+          </label>
+          <label>Genauigkeit
+            <select id="opt-detail">
+              <option value="900">Schnell</option>
+              <option value="1400" selected>Normal</option>
+              <option value="2000">Fein</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" id="opt-colors" checked> Farben übernehmen</label>
+          <label class="check"><input type="checkbox" id="opt-bg"> Originalbild als Hintergrund behalten</label>
+          <label class="check"><input type="checkbox" id="opt-ghost"> Original in der Vorschau einblenden</label>
+        </fieldset>
+        <p id="img-stats" class="stats"></p>
+        <div class="actions">
+          <button class="primary" data-export="goodnotes" data-src="image">Als GoodNotes (.goodnotes)</button>
+          <button class="primary" data-export="notability" data-src="image">Als Notability (.note)</button>
+          <button data-export="pdf" data-src="image">Als PDF</button>
+        </div>
+        <div id="img-pages" class="pages"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Die Formate von GoodNotes und Notability sind nicht offiziell dokumentiert. Getestet mit GoodNotes 6 und Notability 16. Quellcode und Formatbeschreibung auf <a href="https://github.com/Iamioo/notizkonverter">GitHub</a>. Basiert auf <a href="https://github.com/Iamioo/handschrift">Handschrift</a>.</p>
+  </footer>
+
+  <script type="module" src="js/app.js?v=1"></script>
+</body>
+</html>
