@@ -1,6 +1,7 @@
-// Macht aus einem Bild (Zeichnung, Skizze, Foto einer Seite) einzelne Striche.
-// Ablauf: Tinte erkennen -> kleine Flecken entfernen -> Abstandskarte (Strichbreite)
-// -> Skelett (Zhang-Suen) -> Skelett in Linien zerlegen -> Linien vereinfachen.
+// Macht aus einem Bild (Zeichnung, Skizze, Foto) einzelne Striche.
+// Ablauf: Papier erkennen -> Farben zu einer Palette zusammenfassen -> Krümel glätten
+// -> pro Farbe Flächen ausmalen und dünne Teile über das Skelett zu Linien machen
+// -> Linien gleicher Farbe zusammenhängen. Beschreibung in docs/dateiformate.md.
 // Arbeitet auf { data, width, height } wie ImageData, damit es auch ohne Browser testbar ist.
 
 // opts.sensitivity 0..1: höher = auch blasse Linien zählen als Tinte
@@ -281,39 +282,13 @@ function splitSharp(path, W) {
   return out;
 }
 
-// Teilt einen Pfad, wo die Farbe deutlich wechselt (zwei verschiedenfarbige Linien kreuzen sich).
-function splitColor(path, data) {
-  const px = path.px, K = 4;
-  if (px.length < 4 * K) return [path];
-  const col = px.map((p) => [data[p * 4], data[p * 4 + 1], data[p * 4 + 2]]);
-  const avg = (a, b) => {
-    const s = [0, 0, 0];
-    for (let i = a; i < b; i++) for (let c = 0; c < 3; c++) s[c] += col[i][c];
-    return s.map((v) => v / (b - a));
-  };
-  const cuts = [];
-  for (let i = 2 * K; i <= px.length - 2 * K; i++) {
-    const a = avg(i - 2 * K, i), b = avg(i, i + 2 * K);
-    const d = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-    if (d > 70 && (!cuts.length || i - cuts[cuts.length - 1] > 2 * K)) cuts.push(i);
-  }
-  if (!cuts.length) return [path];
-  const out = [];
-  let start = 0;
-  for (const c of cuts) { out.push({ px: px.slice(start, c + 1), ends: 0 }); start = c; }
-  out.push({ px: px.slice(start), ends: 0 });
-  return out;
-}
-
 const hex2 = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
 
 // Linien aus einer Maske: Skelett -> Pfade -> geglättete Striche mit Druck aus der Strichbreite.
-// color: feste Farbe (Füllmodus) oder null (Farbe aus den Pixeln)
-function lineStrokes(mask, W, H, data, { keepColors, widthScale, color = null }) {
+function lineStrokes(mask, W, H, { widthScale, color }) {
   const dist = distance(mask, W, H);
   const sk = thin(mask, W, H);
-  let paths = trace(sk, W, H).flatMap((p) => splitSharp(p, W));
-  if (keepColors && !color) paths = paths.flatMap((p) => splitColor(p, data));
+  const paths = trace(sk, W, H).flatMap((p) => splitSharp(p, W));
 
   const strokes = [];
   for (const { px, ends } of paths) {
@@ -323,98 +298,202 @@ function lineStrokes(mask, W, H, data, { keepColors, widthScale, color = null })
     // kurze Sporne an Ecken dicker Linien weglassen
     if (ends === 1 && px.length < avgR * 2.2) continue;
     if (px.length === 1 && avgR < 1) continue;
-    let c = color || '#000000';
-    if (!color && keepColors) c = pathColor(px, dist, avgR, data);
     // Radius pro Punkt mitführen, später wird daraus der Stiftdruck
     let pts = px.map((p) => [p % W, (p / W) | 0, Math.max(0.5, dist[p])]);
     pts = rdp(smooth(pts), 0.35);
     pts = pts.map(([x, y, r]) => [x, y, Math.max(0, Math.min(1, (r / avgR - 0.55) / 0.9))]);
-    strokes.push({ pts, w: avgR * 2 * widthScale, c });
+    strokes.push({ pts, w: avgR * 2 * widthScale, c: color });
   }
   // Lange Striche zuerst, das sieht beim Aufbau natürlicher aus
   strokes.sort((a, b) => b.pts.length - a.pts.length);
   return strokes;
 }
 
-function pathColor(px, dist, avgR, data) {
-  let r = 0, g = 0, b = 0, cnt = 0;
-  for (const p of px) {
-    // Farbe aus dem Strichkern, nicht vom Rand
-    if (dist[p] < avgR * 0.6 && px.length > 3) continue;
-    r += data[p * 4]; g += data[p * 4 + 1]; b += data[p * 4 + 2]; cnt++;
-  }
-  if (!cnt) for (const p of px) { r += data[p * 4]; g += data[p * 4 + 1]; b += data[p * 4 + 2]; cnt++; }
-  r /= cnt; g /= cnt; b /= cnt;
-  const spread = Math.max(r, g, b) - Math.min(r, g, b);
-  if (spread <= 40 && Math.max(r, g, b) <= 110) return '#000000';
-  if (spread < 40) return '#' + hex2(r * 0.6) + hex2(g * 0.6) + hex2(b * 0.6);
-  // Farbe kräftiger machen: Fotos wirken sonst ausgewaschen
-  const f = 255 / Math.max(r, g, b);
-  return '#' + hex2(r * f * 0.85) + hex2(g * f * 0.85) + hex2(b * f * 0.85);
-}
-
 /* ---------- Farben und Flächen ---------- */
 
-// Papierfarbe: häufigste helle Farbe im Bild
-function paperColor(data, N) {
+// Papierfarbe aus dem Bildrand. Nur wenn der Rand überwiegend hell und fast farblos ist,
+// gilt das Bild als Zeichnung auf Papier. Sonst (Foto, ausgemaltes Bild) wird alles übernommen.
+function paperColor(data, W, H) {
   const hist = new Map();
-  for (let i = 0; i < N; i += 3) {
-    if (data[i * 4 + 3] < 128) continue;
+  let total = 0;
+  const add = (i) => {
+    if (data[i * 4 + 3] < 128) return;
     const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
-    if (r + g + b < 360) continue;
-    const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+    const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
     hist.set(key, (hist.get(key) || 0) + 1);
-  }
+    total++;
+  };
+  for (let x = 0; x < W; x += 2) { add(x); add((H - 1) * W + x); }
+  for (let y = 0; y < H; y += 2) { add(y * W); add(y * W + W - 1); }
+  // benachbarte Töne zusammenzählen, Papier ist selten ganz gleichmäßig
   let best = -1, bestN = 0;
-  for (const [k, n] of hist) if (n > bestN) { best = k; bestN = n; }
-  if (best < 0) return [255, 255, 255];
-  return [((best >> 10) & 31) * 8 + 4, ((best >> 5) & 31) * 8 + 4, (best & 31) * 8 + 4];
+  for (const k of hist.keys()) {
+    let n = 0;
+    for (const [k2, n2] of hist) {
+      if (Math.abs((k >> 8) - (k2 >> 8)) <= 1 && Math.abs(((k >> 4) & 15) - ((k2 >> 4) & 15)) <= 1 && Math.abs((k & 15) - (k2 & 15)) <= 1) n += n2;
+    }
+    if (n > bestN) { bestN = n; best = k; }
+  }
+  if (best < 0 || bestN < total * 0.45) return null;
+  const c = [(best >> 8) * 16 + 8, ((best >> 4) & 15) * 16 + 8, (best & 15) * 16 + 8];
+  if (Math.min(...c) < 165 || Math.max(...c) - Math.min(...c) > 45) return null;
+  return c;
 }
 
-// Farben der Zeichnung per k-Means zu einer kleinen Palette zusammenfassen
-function palette(data, idx, k) {
-  const step = Math.max(1, Math.floor(idx.length / 20000));
+// Farben der Zeichnung per k-Means zu einer Palette zusammenfassen
+function palette(data, idx, k, mergeD) {
+  const step = Math.max(1, Math.floor(idx.length / 30000));
   const sample = [];
   for (let i = 0; i < idx.length; i += step) { const p = idx[i]; sample.push([data[p * 4], data[p * 4 + 1], data[p * 4 + 2]]); }
   if (!sample.length) return [];
   const d2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
   // Start: dunkelste Farbe, dann jeweils die am weitesten entfernte
   let cents = [sample.reduce((a, b) => (a[0] + a[1] + a[2] < b[0] + b[1] + b[2] ? a : b)).slice()];
+  const near = new Float64Array(sample.length).fill(Infinity);
   while (cents.length < k) {
-    let far = null, farD = 0;
-    for (const s of sample) { const d = Math.min(...cents.map((c) => d2(s, c))); if (d > farD) { farD = d; far = s; } }
-    if (!far || farD < 900) break;
-    cents.push(far.slice());
+    const last = cents[cents.length - 1];
+    let far = -1, farD = 0;
+    for (let i = 0; i < sample.length; i++) {
+      const d = d2(sample[i], last);
+      if (d < near[i]) near[i] = d;
+      if (near[i] > farD) { farD = near[i]; far = i; }
+    }
+    if (far < 0 || farD < mergeD * mergeD) break;
+    cents.push(sample[far].slice());
   }
-  for (let it = 0; it < 10; it++) {
+  for (let it = 0; it < 12; it++) {
     const sum = cents.map(() => [0, 0, 0, 0]);
     for (const s of sample) {
       let bi = 0, bd = Infinity;
-      cents.forEach((c, j) => { const d = d2(s, c); if (d < bd) { bd = d; bi = j; } });
+      for (let j = 0; j < cents.length; j++) { const d = d2(s, cents[j]); if (d < bd) { bd = d; bi = j; } }
       sum[bi][0] += s[0]; sum[bi][1] += s[1]; sum[bi][2] += s[2]; sum[bi][3]++;
     }
     cents = sum.filter((v) => v[3]).map((v) => [v[0] / v[3], v[1] / v[3], v[2] / v[3]]);
   }
   // fast gleiche Farben zusammenlegen
   const out = [];
-  for (const c of cents) if (!out.some((o) => d2(o, c) < 35 * 35)) out.push(c);
+  for (const c of cents) if (!out.some((o) => d2(o, c) < mergeD * mergeD * 0.6)) out.push(c);
   return out;
 }
 
-// Fläche mit waagrechten Strichen ausmalen (hatch = true), dazu ein Umriss für saubere Kanten
-function fillStrokes(region, W, H, spacing, c, hatch, outlineW) {
+// 3×3-Weichzeichner (nur Farbe, Deckkraft bleibt)
+function blur3(src, W, H) {
+  const out = new Uint8ClampedArray(src.length);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      const q = (ny * W + nx) * 4;
+      r += src[q]; g += src[q + 1]; b += src[q + 2]; n++;
+    }
+    const p = (y * W + x) * 4;
+    out[p] = r / n; out[p + 1] = g / n; out[p + 2] = b / n; out[p + 3] = src[p + 3];
+  }
+  return out;
+}
+
+// Mehrheitsfilter 3×3 auf der Farbkarte: glättet Kanten und entfernt einzelne Ausreißer
+function smoothLabels(label, W, H, K) {
+  const out = new Int8Array(label.length);
+  const cnt = new Int32Array(K + 1);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const touched = [];
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      const l = label[ny * W + nx] + 1;
+      if (!cnt[l]) touched.push(l);
+      cnt[l]++;
+    }
+    const own = label[y * W + x] + 1;
+    let best = own, bestN = cnt[own];
+    for (const l of touched) { if (cnt[l] > bestN) { bestN = cnt[l]; best = l; } }
+    out[y * W + x] = best - 1;
+    for (const l of touched) cnt[l] = 0;
+  }
+  return out;
+}
+
+// Kleine Farbinseln bekommen die Farbe ihrer Umgebung, statt als Krümel übrig zu bleiben
+function absorbSmall(label, W, H, minArea) {
+  const seen = new Uint8Array(W * H);
+  const stack = [];
+  for (let s = 0; s < W * H; s++) {
+    if (seen[s]) continue;
+    const l = label[s];
+    const comp = [];
+    seen[s] = 1; stack.push(s);
+    while (stack.length) {
+      const p = stack.pop();
+      comp.push(p);
+      const x = p % W, y = (p / W) | 0;
+      if (x > 0 && !seen[p - 1] && label[p - 1] === l) { seen[p - 1] = 1; stack.push(p - 1); }
+      if (x < W - 1 && !seen[p + 1] && label[p + 1] === l) { seen[p + 1] = 1; stack.push(p + 1); }
+      if (y > 0 && !seen[p - W] && label[p - W] === l) { seen[p - W] = 1; stack.push(p - W); }
+      if (y < H - 1 && !seen[p + W] && label[p + W] === l) { seen[p + W] = 1; stack.push(p + W); }
+    }
+    if (comp.length >= minArea) continue;
+    const votes = new Map();
+    for (const p of comp) {
+      const x = p % W, y = (p / W) | 0;
+      for (const q of [x > 0 ? p - 1 : -1, x < W - 1 ? p + 1 : -1, y > 0 ? p - W : -1, y < H - 1 ? p + W : -1]) {
+        if (q < 0 || label[q] === l) continue;
+        votes.set(label[q], (votes.get(label[q]) || 0) + 1);
+      }
+    }
+    let best = l, bestN = 0;
+    for (const [k, n] of votes) if (n > bestN) { bestN = n; best = k; }
+    for (const p of comp) label[p] = best;
+  }
+}
+
+// Fläche in Schlangenlinien ausmalen: Zeile für Zeile hin und her, so entstehen wenige lange
+// Striche statt vieler kurzer. Dazu ein Umriss für saubere Kanten.
+function fillStrokes(region, W, H, spacing, c, hatch, outlineW, withOutline, inset = true) {
   const strokes = [];
-  const half = spacing / 2;
-  for (let y = Math.floor(half); hatch && y < H; y += spacing) {
-    let x = 0;
-    while (x < W) {
-      if (!region[y * W + x]) { x++; continue; }
-      const x0 = x;
-      // kleine Lücken (1 px) überbrücken
-      while (x < W && (region[y * W + x] || (x + 1 < W && region[y * W + x + 1]))) x++;
-      strokes.push({ pts: [[x0, y, 0.5], [Math.max(x0, x - 1), y, 0.5]], w: spacing * 1.5, c });
+  const w = spacing * 1.5;
+  if (hatch) {
+    const rows = [];
+    for (let y = Math.floor(spacing / 2); y < H; y += spacing) {
+      const runs = [];
+      let x = 0;
+      while (x < W) {
+        if (!region[y * W + x]) { x++; continue; }
+        const x0 = x;
+        while (x < W && (region[y * W + x] || (x + 1 < W && region[y * W + x + 1]))) x++;
+        // Enden etwas einrücken, damit die runde Stiftspitze nicht über den Rand malt
+        const ins = inset ? Math.min(spacing * 0.4, (x - 1 - x0) / 2) : 0;
+        runs.push({ x0: x0 + ins, x1: x - 1 - ins, y, used: false });
+      }
+      rows.push(runs);
+    }
+    for (let r = 0; r < rows.length; r++) {
+      for (const start of rows[r]) {
+        if (start.used) continue;
+        start.used = true;
+        const pts = [[start.x0, start.y, 0.5], [start.x1, start.y, 0.5]];
+        let cur = start, atRight = true;
+        for (let rr = r + 1; rr < rows.length && pts.length < 3000; rr++) {
+          const endX = atRight ? cur.x1 : cur.x0;
+          let next = null, nd = Infinity;
+          for (const n of rows[rr]) {
+            if (n.used || n.x1 < cur.x0 - 1 || n.x0 > cur.x1 + 1) continue;
+            const d = Math.abs((atRight ? n.x1 : n.x0) - endX);
+            if (d < nd) { nd = d; next = n; }
+          }
+          if (!next) break;
+          next.used = true;
+          if (atRight) pts.push([next.x1, next.y, 0.5], [next.x0, next.y, 0.5]);
+          else pts.push([next.x0, next.y, 0.5], [next.x1, next.y, 0.5]);
+          atRight = !atRight;
+          cur = next;
+        }
+        strokes.push({ pts, w, c });
+      }
     }
   }
+  if (!withOutline && hatch) return strokes;
   // Umriss: Randpixel der Fläche als Linien
   const edge = new Uint8Array(W * H);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
@@ -432,31 +511,124 @@ function fillStrokes(region, W, H, spacing, c, hatch, outlineW) {
   return strokes;
 }
 
-function colorMode(img, { sensitivity, widthScale, keepColors, fill }) {
-  const { width: W, height: H, data } = img;
+// Hängt Linien gleicher Farbe aneinander, deren Enden sich fast berühren und in dieselbe Richtung zeigen.
+function mergeLines(strokes) {
+  const len = (s) => { let l = 0; for (let i = 1; i < s.pts.length; i++) l += Math.hypot(s.pts[i][0] - s.pts[i - 1][0], s.pts[i][1] - s.pts[i - 1][1]); return l; };
+  // Richtung am Ende (aus dem Strich heraus)
+  const dirAt = (s, atEnd) => {
+    const p = s.pts, n = p.length;
+    if (n < 2) return null;
+    const a = atEnd ? p[n - 1] : p[0];
+    let b = atEnd ? p[n - 2] : p[1];
+    for (let i = 2; i < Math.min(n, 5) && Math.hypot(a[0] - b[0], a[1] - b[1]) < 3; i++) b = atEnd ? p[n - 1 - i] : p[i];
+    const l = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
+    return [(a[0] - b[0]) / l, (a[1] - b[1]) / l];
+  };
+  const byColor = new Map();
+  for (const s of strokes) { if (!byColor.has(s.c)) byColor.set(s.c, []); byColor.get(s.c).push(s); }
+  const out = [];
+  for (const list of byColor.values()) {
+    let alive = list.map((s) => ({ ...s, len: len(s) }));
+    for (let pass = 0; pass < 6; pass++) {
+      const cell = 8;
+      const grid = new Map();
+      const key = (x, y) => ((x / cell) | 0) + ',' + ((y / cell) | 0);
+      alive.forEach((s, i) => {
+        for (const end of [0, 1]) {
+          const p = end ? s.pts[s.pts.length - 1] : s.pts[0];
+          const k = key(p[0], p[1]);
+          if (!grid.has(k)) grid.set(k, []);
+          grid.get(k).push([i, end]);
+        }
+      });
+      const dead = new Uint8Array(alive.length);
+      let merged = 0;
+      for (let i = 0; i < alive.length; i++) {
+        if (dead[i]) continue;
+        for (const endA of [1, 0]) {
+          const a = alive[i];
+          if (dead[i]) break;
+          const pa = endA ? a.pts[a.pts.length - 1] : a.pts[0];
+          const da = dirAt(a, endA === 1);
+          let best = null, bestScore = Infinity;
+          const gx = (pa[0] / cell) | 0, gy = (pa[1] / cell) | 0;
+          for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) {
+            for (const [j, endB] of grid.get((gx + ox) + ',' + (gy + oy)) || []) {
+              if (j === i || dead[j]) continue;
+              const b = alive[j];
+              if (Math.max(a.w, b.w) / Math.max(0.1, Math.min(a.w, b.w)) > 1.8) continue;
+              const pb = endB ? b.pts[b.pts.length - 1] : b.pts[0];
+              const d = Math.hypot(pa[0] - pb[0], pa[1] - pb[1]);
+              if (d > Math.max(2, 0.9 * Math.max(a.w, b.w))) continue;
+              const db = dirAt(b, endB === 1);
+              // Enden müssen aufeinander zu zeigen
+              const cos = da && db ? -(da[0] * db[0] + da[1] * db[1]) : 1;
+              if (cos < 0.5) continue;
+              const score = d - cos * 2;
+              if (score < bestScore) { bestScore = score; best = [j, endB]; }
+            }
+          }
+          if (!best) continue;
+          const [j, endB] = best;
+          const b = alive[j];
+          const ap = endA ? a.pts : a.pts.slice().reverse();
+          const bp = endB ? b.pts.slice().reverse() : b.pts;
+          const total = a.len + b.len || 1;
+          alive[i] = { pts: ap.concat(bp), w: (a.w * a.len + b.w * b.len) / total, c: a.c, len: total };
+          dead[j] = 1;
+          merged++;
+        }
+      }
+      alive = alive.filter((_, i) => !dead[i]);
+      if (!merged) break;
+    }
+    for (const s of alive) { delete s.len; out.push(s); }
+  }
+  return out;
+}
+
+// colors: höchstens so viele Farben. Mehr Farben = mehr Details, aber mehr Striche.
+function colorMode(img, { sensitivity, widthScale, keepColors, fill, detail = 2 }) {
+  const { width: W, height: H } = img;
+  let data = img.data;
+  // Stufe 1 = wenig, 2 = mittel, 3 = viele Details
+  const colors = [8, 16, 28][detail - 1];
+  const islandShare = [0.00015, 0.00006, 0.00002][detail - 1];
   const N = W * H;
   const res = Math.max(W, H) / 1400;              // Maße an die Auflösung anpassen
-  const { mask: ink } = inkMask(img, { sensitivity });
-  const bg = paperColor(data, N);
-  const thr = 14 + (1 - sensitivity) * 36;        // ab dieser Farbabweichung zählt ein Pixel zur Zeichnung
+  const bg = paperColor(data, W, H);
   const fg = [];
-  for (let i = 0; i < N; i++) {
-    if (data[i * 4 + 3] < 128) continue;
-    const d = Math.hypot(data[i * 4] - bg[0], data[i * 4 + 1] - bg[1], data[i * 4 + 2] - bg[2]);
-    if (ink[i] || d > thr) fg.push(i);
+  if (bg) {
+    const { mask: ink } = inkMask(img, { sensitivity });
+    const thr = 14 + (1 - sensitivity) * 36;      // ab dieser Farbabweichung zählt ein Pixel zur Zeichnung
+    for (let i = 0; i < N; i++) {
+      if (data[i * 4 + 3] < 128) continue;
+      const d = Math.hypot(data[i * 4] - bg[0], data[i * 4 + 1] - bg[1], data[i * 4 + 2] - bg[2]);
+      if (ink[i] || d > thr) fg.push(i);
+    }
+  } else {
+    // kein Papier erkennbar (Foto, ausgemaltes Bild): das ganze Bild ist Zeichnung.
+    // Leicht weichzeichnen, damit Bildrauschen keine Farbkrümel erzeugt.
+    data = blur3(data, W, H);
+    for (let i = 0; i < N; i++) if (data[i * 4 + 3] >= 128) fg.push(i);
   }
-  const cents = palette(data, fg, 12);
-  const label = new Int8Array(N).fill(-1);
+  const mergeD = Math.max(12, 340 / colors);
+  const cents = palette(data, fg, colors, mergeD);
+  let label = new Int8Array(N).fill(-1);
   for (const p of fg) {
     let bi = 0, bd = Infinity;
-    cents.forEach((c, j) => {
+    for (let j = 0; j < cents.length; j++) {
+      const c = cents[j];
       const d = (data[p * 4] - c[0]) ** 2 + (data[p * 4 + 1] - c[1]) ** 2 + (data[p * 4 + 2] - c[2]) ** 2;
       if (d < bd) { bd = d; bi = j; }
-    });
+    }
     label[p] = bi;
   }
+  label = smoothLabels(label, W, H, cents.length);
+  absorbSmall(label, W, H, Math.max(6, Math.round(N * islandShare)));
+
   // Ab diesem Radius gilt etwas als Fläche. Ohne Füllen bleiben auch dicke Linien Linien.
-  const T = fill ? Math.max(3, 4 * res) : Math.max(6, 9 * res);
+  const T = fill ? Math.max(2, 2.5 * res) : Math.max(6, 9 * res);
   const spacing = Math.max(2, Math.round(2.5 * res));
   const outlineW = Math.max(1.5, 3 * res) * widthScale;
   const fills = [], lines = [];
@@ -467,45 +639,59 @@ function colorMode(img, { sensitivity, widthScale, keepColors, fill }) {
     // ohne Farben: Graustufen, damit Flächen trotzdem unterscheidbar bleiben
     const g = 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
     const hex = keepColors ? '#' + hex2(c[0]) + hex2(c[1]) + hex2(c[2]) : fill ? '#' + hex2(g) + hex2(g) + hex2(g) : '#000000';
-    const m = new Uint8Array(N);
-    for (let i = 0; i < N; i++) if (label[i] === j) m[i] = 1;
-    removeSpecks(m, W, H, Math.max(6, Math.round(N * 0.00002)));
-    const dist = distance(m, W, H);
+    // Nur im Rahmen dieser Farbe rechnen, das spart bei vielen Farben viel Zeit
+    let x0 = W, y0 = H, x1 = -1, y1 = -1;
+    for (let i = 0; i < N; i++) if (label[i] === j) { const x = i % W, y = (i / W) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 < 0) continue;
+    const cw = x1 - x0 + 3, ch = y1 - y0 + 3, CN = cw * ch;
+    const m = new Uint8Array(CN);
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (label[y * W + x] === j) m[(y - y0 + 1) * cw + x - x0 + 1] = 1;
+    const shift = (st) => { st.pts = st.pts.map(([x, y, p]) => [x + x0 - 1, y + y0 - 1, p]); return st; };
+    const dist = distance(m, cw, ch);
     // Kern = weit vom Rand; Fläche = alles in Reichweite T eines Kernpixels
-    const notCore = new Uint8Array(N);
+    const notCore = new Uint8Array(CN);
     let anyCore = false;
-    for (let i = 0; i < N; i++) { if (dist[i] >= T) anyCore = true; else notCore[i] = 1; }
-    const region = new Uint8Array(N);
+    for (let i = 0; i < CN; i++) { if (dist[i] >= T) anyCore = true; else notCore[i] = 1; }
+    const region = new Uint8Array(CN);
     if (anyCore) {
-      const dc = distance(notCore, W, H);
-      for (let i = 0; i < N; i++) if (m[i] && dc[i] <= T + 0.5) region[i] = 1;
+      const dc = distance(notCore, cw, ch);
+      for (let i = 0; i < CN; i++) if (m[i] && dc[i] <= T + 0.5) region[i] = 1;
       // Jede Fläche einzeln: kleine Flecken (Augen, Punkte) werden immer ausgemalt
-      for (const comp of components(region, W, H)) {
+      for (const comp of components(region, cw, ch)) {
         let maxD = 0;
         for (const p of comp.px) if (dist[p] > maxD) maxD = dist[p];
         const hatch = fill || maxD < 4 * T;
-        const cw = comp.x1 - comp.x0 + 3, ch = comp.y1 - comp.y0 + 3;
-        const crop = new Uint8Array(cw * ch);
-        for (const p of comp.px) crop[((p / W | 0) - comp.y0 + 1) * cw + (p % W) - comp.x0 + 1] = 1;
-        for (const st of fillStrokes(crop, cw, ch, spacing, hex, hatch, outlineW)) {
-          st.pts = st.pts.map(([x, y, pr]) => [x + comp.x0 - 1, y + comp.y0 - 1, pr]);
-          fills.push(st);
+        const bw = comp.x1 - comp.x0 + 3, bh = comp.y1 - comp.y0 + 3;
+        const crop = new Uint8Array(bw * bh);
+        for (const p of comp.px) crop[(((p / cw) | 0) - comp.y0 + 1) * bw + (p % cw) - comp.x0 + 1] = 1;
+        // Umriss nur bei größeren Flächen, bei kleinen reicht die Füllung
+        const withOutline = comp.px.length > spacing * spacing * 60;
+        for (const st of fillStrokes(crop, bw, bh, spacing, hex, hatch, outlineW, withOutline, !fill)) {
+          st.pts = st.pts.map(([x, y, p]) => [x + comp.x0 - 1, y + comp.y0 - 1, p]);
+          fills.push(shift(st));
         }
       }
     }
-    const thinPart = new Uint8Array(N);
-    for (let i = 0; i < N; i++) if (m[i] && !region[i]) thinPart[i] = 1;
-    removeSpecks(thinPart, W, H, Math.max(6, Math.round(N * 0.00002)));
-    lines.push(...lineStrokes(thinPart, W, H, data, { keepColors: true, widthScale, color: hex }));
+    const thinPart = new Uint8Array(CN);
+    for (let i = 0; i < CN; i++) if (m[i] && !region[i]) thinPart[i] = 1;
+    removeSpecks(thinPart, cw, ch, 3);
+    for (const st of lineStrokes(thinPart, cw, ch, { widthScale, color: hex })) {
+      // beim Ausfüllen etwas breiter, damit zwischen Nachbarfarben kein Papier durchscheint
+      if (fill) st.w += 1;
+      lines.push(shift(st));
+    }
   }
-  return { strokes: fills.concat(lines), inkPixels: fg.length };
+  // Sehr kurze, dünne Reste weglassen: das sind fast immer Krümel
+  const merged = mergeLines(lines).filter((s) => s.pts.length > 1 || s.w > 2 * res);
+  merged.sort((a, b) => b.pts.length - a.pts.length);
+  return { strokes: fills.concat(merged), inkPixels: fg.length };
 }
 
 // Ergebnis: Striche in Pixelkoordinaten des Bildes. Dritte Koordinate = Stiftdruck 0..1.
 // Jede Farbe wird getrennt bearbeitet: dünne Teile werden Linien, breite Flächen bekommen
 // einen Umriss und mit fill = true zusätzlich eine Füllung.
-export function vectorize(img, { sensitivity = 0.5, keepColors = true, widthScale = 1, fill = false } = {}) {
-  return colorMode(img, { sensitivity, widthScale, keepColors, fill });
+export function vectorize(img, { sensitivity = 0.5, keepColors = true, widthScale = 1, fill = false, detail = 2 } = {}) {
+  return colorMode(img, { sensitivity, widthScale, keepColors, fill, detail });
 }
 
 // Pixel-Striche auf das Blatt setzen: Bild zentriert einpassen

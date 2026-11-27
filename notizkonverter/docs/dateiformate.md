@@ -130,11 +130,15 @@ Noch nicht übernommen: PDF-Hintergründe, eingefügte Bilder, getippter Text, A
 
 `js/vectorize.js`:
 
-1. Zeichnung vom Papier trennen: Ein Pixel gehört zur Zeichnung, wenn es sich von der Papierfarbe (häufigste helle Farbe) unterscheidet oder dunkler ist als seine Umgebung (örtlicher Mittelwert über ein Integralbild).
-2. Die Farben der Zeichnung per k-Means auf höchstens 12 zusammenfassen. Jede Farbe wird einzeln weiterverarbeitet, dadurch bekommen sich kreuzende Linien ihre richtige Farbe.
-3. Pro Farbe trennt die Abstandskarte (Chamfer 3-4) dünne Teile von Flächen. Als Fläche gilt alles in Reichweite eines Pixels, das weiter als T vom Rand entfernt ist (T etwa 4 px mit Füllen, 9 px ohne, bezogen auf 1400 px Bildbreite).
-4. Dünne Teile: Skelett nach Zhang-Suen, Treppenstufen entfernen, in Pfade zerlegen (Knoten über die Übergangszahl), an Knicken über etwa 80° trennen, dreimal glätten, mit Douglas-Peucker (0,35 px) vereinfachen. Geschlossene Formen teilt der Vereinfacher am entferntesten Punkt, sonst würden Kreise zu einem Punkt. Die örtliche Strichbreite wird zum Stiftdruck (Umkehrung von `widthFactor`), Notability zeigt dadurch dicke und dünne Stellen.
-5. Flächen: Mit „Flächen ausfüllen“ werden sie mit waagrechten Strichen im Abstand von etwa 2,5 px ausgemalt und bekommen einen Umriss. Ohne die Option bekommen große Flächen nur einen Umriss, kleine (Augen, Punkte) werden trotzdem ausgemalt.
-6. Hellere Farben liegen unten, dunkle Linien oben.
+1. Papier erkennen: Ist der Bildrand überwiegend hell und fast farblos, gilt das Bild als Zeichnung auf Papier. Dann zählt nur, was sich vom Papier abhebt oder dunkler ist als seine Umgebung. Sonst (Foto, ausgemaltes Bild) wird das ganze Bild übernommen und vorher leicht weichgezeichnet, damit Bildrauschen keine Krümel erzeugt.
+2. Farben per k-Means zu einer Palette zusammenfassen. Die Stufe „Details“ legt die Höchstzahl fest: 8, 16 oder 28.
+3. Farbkarte glätten: Mehrheitsfilter 3 × 3, danach bekommen Farbinseln unter einer Mindestgröße die Farbe ihrer Umgebung. Die Mindestgröße hängt ebenfalls von „Details“ ab.
+4. Jede Farbe einzeln, nur im Rahmen ihrer Pixel: Die Abstandskarte (Chamfer 3-4) trennt dünne Teile von Flächen. Als Fläche gilt alles in Reichweite eines Pixels, das weiter als T vom Rand entfernt ist (T etwa 2,5 px mit Füllen, 9 px ohne, bezogen auf 1400 px Bildbreite).
+5. Flächen werden in Schlangenlinien ausgemalt: Zeile für Zeile hin und her, überlappende Abschnitte benachbarter Zeilen hängen aneinander. Eine Fläche wird so meist zu einem einzigen Strich. Größere Flächen bekommen zusätzlich einen Umriss. Ohne „Flächen ausfüllen“ bekommen große Flächen nur den Umriss, kleine (Augen, Punkte) werden trotzdem ausgemalt.
+6. Dünne Teile: Skelett nach Zhang-Suen, Treppenstufen entfernen, in Pfade zerlegen (Knoten über die Übergangszahl), an Knicken über etwa 80° trennen, dreimal glätten, mit Douglas-Peucker (0,35 px) vereinfachen. Geschlossene Formen teilt der Vereinfacher am entferntesten Punkt. Die örtliche Strichbreite wird zum Stiftdruck (Umkehrung von `widthFactor`).
+7. Linien gleicher Farbe und ähnlicher Breite, deren Enden sich fast berühren und aufeinander zu zeigen, werden zu einer Linie zusammengehängt.
+8. Hellere Farben liegen unten, dunkle Linien oben.
 
-Ausgefüllte Bilder erzeugen viele Striche (ein Comic mit 1000 px Breite etwa 1400). GoodNotes und Notability kommen damit zurecht, die Dateien werden ein paar hundert KB groß.
+Kleine Bilder werden vor der Erkennung bis zu 2,5-fach vergrößert, damit Kanten und Füllung feiner werden.
+
+Fotos erzeugen viele Striche. Ein Katzenfoto hatte mit „Mittel“ etwa 7.000, mit „Viele“ etwa 12.000 Striche, die Datei wurde rund 5 MB groß.

@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#1f3a5f">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
-  <link rel="stylesheet" href="css/style.css?v=2">
+  <link rel="stylesheet" href="css/style.css?v=3">
 </head>
 <body>
   <header>
@@ -52,7 +52,7 @@
         <strong>Bilder oder PNGs wählen</strong>
         <span>oder hierher ziehen. Jedes Bild wird eine Seite.</span>
       </label>
-      <p class="hint">Am besten klappt es mit Strichzeichnungen auf hellem Grund: Skizzen, Diagramme, Unterschriften, Fotos von Tafel oder Papier.</p>
+      <p class="hint">Klappt mit Skizzen und Diagrammen genauso wie mit bunten Bildern und Fotos. Für Fotos „Flächen ausfüllen“ anlassen und bei Bedarf mehr Details wählen.</p>
 
       <div id="img-result" hidden>
         <fieldset class="settings">
@@ -62,14 +62,21 @@
           <label>Strichstärke
             <input type="range" id="opt-width" min="0.4" max="2" step="0.1" value="1">
           </label>
-          <label>Genauigkeit
+          <label>Details
+            <select id="opt-level">
+              <option value="1">Wenig (8 Farben)</option>
+              <option value="2" selected>Mittel (16 Farben)</option>
+              <option value="3">Viele (28 Farben)</option>
+            </select>
+          </label>
+          <label>Auflösung
             <select id="opt-detail">
               <option value="900">Schnell</option>
               <option value="1400" selected>Normal</option>
               <option value="2200">Fein</option>
             </select>
           </label>
-          <label class="check"><input type="checkbox" id="opt-fill"> Flächen ausfüllen</label>
+          <label class="check"><input type="checkbox" id="opt-fill" checked> Flächen ausfüllen</label>
           <label class="check"><input type="checkbox" id="opt-colors" checked> Farben übernehmen</label>
           <label class="check"><input type="checkbox" id="opt-bg"> Originalbild als Hintergrund behalten</label>
           <label class="check"><input type="checkbox" id="opt-ghost"> Original in der Vorschau einblenden</label>
@@ -89,6 +96,6 @@
     <p>Die Formate von GoodNotes und Notability sind nicht offiziell dokumentiert. Getestet mit GoodNotes 6 und Notability 16. Quellcode und Formatbeschreibung auf <a href="https://github.com/Iamioo/notizkonverter">GitHub</a>. Basiert auf <a href="https://github.com/Iamioo/handschrift">Handschrift</a>.</p>
   </footer>
 
-  <script type="module" src="js/app.js?v=2"></script>
+  <script type="module" src="js/app.js?v=3"></script>
 </body>
 </html>

@@ -99,7 +99,8 @@ function loadImage(file) {
 // Bild verkleinern und als Pixel lesen; zusätzlich JPEG für den Hintergrund
 async function prepareImage(file, maxSide) {
   const img = await loadImage(file);
-  const k = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+  // kleine Bilder vergrößern, dann werden Kanten und Füllung feiner
+  const k = Math.min(2.5, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
   const w = Math.max(1, Math.round(img.naturalWidth * k)), h = Math.max(1, Math.round(img.naturalHeight * k));
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
@@ -138,6 +139,7 @@ async function processImages() {
         keepColors: $('opt-colors').checked,
         widthScale: Number($('opt-width').value),
         fill: $('opt-fill').checked,
+        detail: Number($('opt-level').value),
       };
       const pages = [];
       for (let i = 0; i < items.length; i++) {
@@ -186,7 +188,7 @@ setupDrop('img-drop', 'img-file', (files) => {
 
 let timer = 0;
 const later = () => { clearTimeout(timer); timer = setTimeout(() => imageFiles.length && processImages(), 250); };
-['opt-sens', 'opt-width', 'opt-detail', 'opt-colors', 'opt-fill'].forEach((id) => $(id).addEventListener('input', later));
+['opt-sens', 'opt-width', 'opt-detail', 'opt-level', 'opt-colors', 'opt-fill'].forEach((id) => $(id).addEventListener('input', later));
 ['opt-bg', 'opt-ghost'].forEach((id) => $(id).addEventListener('change', redrawImages));
 
 /* ---------- Export ---------- */
